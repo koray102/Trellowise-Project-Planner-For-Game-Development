@@ -331,50 +331,45 @@ export const useStore = create<GDSState>((set, get) => ({
 
   addTask: async (title, description, assignedTo, status) => {
     const id = `task_${Date.now()}`;
+    set((state) => ({
+      tasks: [...state.tasks, { id, title, description, assignedTo, status }]
+    }));
     if (hasSupabase && supabase) {
       await supabase.from('tasks').insert({ id, title, description, assigned_to: assignedTo, status });
-    } else {
-      set((state) => ({
-        tasks: [...state.tasks, { id, title, description, assignedTo, status }]
-      }));
     }
   },
 
   removeTask: async (taskId) => {
+    set((state) => ({ tasks: state.tasks.filter(t => t.id !== taskId) }));
     if (hasSupabase && supabase) {
       await supabase.from('tasks').delete().eq('id', taskId);
-    } else {
-      set((state) => ({ tasks: state.tasks.filter(t => t.id !== taskId) }));
     }
   },
 
   renameTask: async (taskId, newTitle) => {
+    set((state) => ({
+      tasks: state.tasks.map(t => t.id === taskId ? { ...t, title: newTitle } : t)
+    }));
     if (hasSupabase && supabase) {
       await supabase.from('tasks').update({ title: newTitle }).eq('id', taskId);
-    } else {
-      set((state) => ({
-        tasks: state.tasks.map(t => t.id === taskId ? { ...t, title: newTitle } : t)
-      }));
     }
   },
 
   reassignTask: async (taskId, newAssignee) => {
+    set((state) => ({
+      tasks: state.tasks.map(t => t.id === taskId ? { ...t, assignedTo: newAssignee } : t)
+    }));
     if (hasSupabase && supabase) {
       await supabase.from('tasks').update({ assigned_to: newAssignee }).eq('id', taskId);
-    } else {
-      set((state) => ({
-        tasks: state.tasks.map(t => t.id === taskId ? { ...t, assignedTo: newAssignee } : t)
-      }));
     }
   },
 
   moveTask: async (taskId, newStatus) => {
+    set((state) => ({
+      tasks: state.tasks.map(t => t.id === taskId ? { ...t, status: newStatus } : t)
+    }));
     if (hasSupabase && supabase) {
       await supabase.from('tasks').update({ status: newStatus }).eq('id', taskId);
-    } else {
-      set((state) => ({
-        tasks: state.tasks.map(t => t.id === taskId ? { ...t, status: newStatus } : t)
-      }));
     }
   },
 
