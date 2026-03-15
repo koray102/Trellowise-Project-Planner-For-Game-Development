@@ -40,6 +40,7 @@ export interface GDSState {
   updateUserStatus: (userId: string, status: UserStatus) => void;
   addOccupiedItem: (name: string, type: ItemType) => Promise<void>;
   removeOccupiedItem: (itemId: string) => Promise<void>;
+  renameOccupiedItem: (itemId: string, newName: string) => Promise<void>;
   toggleOccupiedLock: (itemId: string, userId: string) => Promise<void>;
   addTask: (title: string, assignedTo: string, status: TaskStatusType) => Promise<void>;
   moveTask: (taskId: string, newStatus: TaskStatusType) => Promise<void>;
@@ -161,6 +162,18 @@ export const useStore = create<GDSState>((set, get) => ({
       await supabase.from('occupied_items').delete().eq('id', itemId);
     } else {
       set((state) => ({ occupiedItems: state.occupiedItems.filter(i => i.id !== itemId) }));
+    }
+  },
+
+  renameOccupiedItem: async (itemId, newName) => {
+    if (hasSupabase && supabase) {
+      await supabase.from('occupied_items').update({ name: newName }).eq('id', itemId);
+    } else {
+      set((state) => ({
+        occupiedItems: state.occupiedItems.map(i => 
+          i.id === itemId ? { ...i, name: newName } : i
+        )
+      }));
     }
   },
 
