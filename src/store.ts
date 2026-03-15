@@ -11,6 +11,8 @@ export interface User {
   name: string;
   avatar: string;
   status: UserStatus;
+  roles: string[];
+  isAdmin: boolean;
 }
 
 export interface OccupiedItem {
@@ -39,17 +41,28 @@ export interface CalendarEvent {
   type: EventType;
 }
 
+export interface AnnouncementItem {
+  id: string;
+  text: string;
+  userId: string;
+  createdAt: number;
+}
+
 export interface GDSState {
   users: User[];
   currentUser: User | null;
   occupiedItems: OccupiedItem[];
   tasks: TaskItem[];
   events: CalendarEvent[];
+  announcements: AnnouncementItem[];
+  availableRoles: string[];
   
   // Actions
   initDb: () => Promise<void>;
   setCurrentUser: (userId: string) => void;
   updateUserStatus: (userId: string, status: UserStatus) => void;
+  updateUserProfile: (userId: string, updates: Partial<User>) => Promise<void>;
+  addAvailableRole: (roleName: string) => Promise<void>;
   addOccupiedItem: (name: string, type: ItemType) => Promise<void>;
   removeOccupiedItem: (itemId: string) => Promise<void>;
   renameOccupiedItem: (itemId: string, newName: string) => Promise<void>;
@@ -60,15 +73,18 @@ export interface GDSState {
   reassignTask: (taskId: string, newAssignee: string) => Promise<void>;
   moveTask: (taskId: string, newStatus: TaskStatusType) => Promise<void>;
   addEvent: (title: string, description: string, date: Date, type: EventType) => Promise<void>;
+  addAnnouncement: (text: string, userId: string) => Promise<void>;
 }
 
 // Initial Mock Users (4-person Unity Team)
 const MOCK_USERS: User[] = [
-  { id: '1', name: 'Koray (Lead)', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Koray', status: 'online' },
-  { id: '2', name: 'Sam (Art)', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Sam', status: 'online' },
-  { id: '3', name: 'Jordan (Code)', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Jordan', status: 'away' },
-  { id: '4', name: 'Alex (Design)', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Alex', status: 'offline' },
+  { id: '1', name: 'Koray', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Koray', status: 'online', roles: ['Lead'], isAdmin: true },
+  { id: '2', name: 'Sam', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Sam', status: 'online', roles: ['Art'], isAdmin: false },
+  { id: '3', name: 'Jordan', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Jordan', status: 'away', roles: ['Code'], isAdmin: false },
+  { id: '4', name: 'Alex', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Alex', status: 'offline', roles: ['Design'], isAdmin: false },
 ];
+
+const MOCK_AVAILABLE_ROLES = ['Lead', 'Art', 'Code', 'Design', 'QA', 'Audio', 'Producer'];
 
 const MOCK_OCCUPIED: OccupiedItem[] = [
   { id: '1', name: 'MainMenu', type: 'scene', occupiedBy: '1', lastUpdated: Date.now() - 1000 * 60 * 30 },
@@ -95,12 +111,19 @@ const MOCK_EVENTS: CalendarEvent[] = [
   { id: 'e6', title: 'Beta Branch Cut', date: new Date(new Date().setDate(new Date().getDate() + 8)).getTime(), type: 'deadline' },
 ];
 
+const MOCK_ANNOUNCEMENTS: AnnouncementItem[] = [
+  { id: 'a1', text: 'New Unity Package added to repo.', userId: '4', createdAt: Date.now() - 1000 * 60 * 60 * 2 },
+  { id: 'a2', text: 'Main menu scene unlocked. Feel free to tweak UI.', userId: '3', createdAt: Date.now() - 1000 * 60 * 60 * 24 },
+];
+
 export const useStore = create<GDSState>((set, get) => ({
   users: MOCK_USERS,
   currentUser: MOCK_USERS[0],
   occupiedItems: MOCK_OCCUPIED,
   tasks: MOCK_TASKS,
   events: MOCK_EVENTS,
+  announcements: MOCK_ANNOUNCEMENTS,
+  availableRoles: MOCK_AVAILABLE_ROLES,
 
   initDb: async () => {
     if (!hasSupabase || !supabase) {
@@ -168,8 +191,33 @@ export const useStore = create<GDSState>((set, get) => ({
 
   updateUserStatus: (userId, status) =>
     set((state) => ({
-      users: state.users.map(u => u.id === userId ? { ...u, status } : u)
+      users: state.users.map(u => u.id === userId ? { ...u, status } : u),
+      currentUser: state.currentUser?.id === userId ? { ...state.currentUser, status } : state.currentUser
     })),
+
+  updateUserProfile: async (userId, updates) => {
+    if (hasSupabase && supabase) {
+      // Logic for supabase profiles would go here
+    } else {
+      set((state) => {
+        const updatedUsers = state.users.map(u => u.id === userId ? { ...u, ...updates } : u);
+        return {
+          users: updatedUsers,
+          currentUser: state.currentUser?.id === userId ? { ...state.currentUser, ...updates } : state.currentUser
+        };
+      });
+    }
+  },
+
+  addAvailableRole: async (roleName) => {
+    if (hasSupabase && supabase) {
+      // db logic
+    } else {
+      set((state) => ({
+        availableRoles: [...new Set([...state.availableRoles, roleName])]
+      }));
+    }
+  },
 
   addOccupiedItem: async (name, type) => {
     const newItemId = `new_${Date.now()}`;
@@ -298,6 +346,20 @@ export const useStore = create<GDSState>((set, get) => ({
         set((state) => ({
             events: [...state.events, newEvent]
         }));
+    }
+  },
+
+  addAnnouncement: async (text, userId) => {
+    const newAnnounce: AnnouncementItem = {
+      id: `ann_${Date.now()}`,
+      text,
+      userId,
+      createdAt: Date.now()
+    };
+    if (hasSupabase && supabase) {
+      // db logic
+    } else {
+      set((state) => ({ announcements: [newAnnounce, ...state.announcements] }));
     }
   }
 }));
