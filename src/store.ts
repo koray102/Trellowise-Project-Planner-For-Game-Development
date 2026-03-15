@@ -133,24 +133,36 @@ export const useStore = create<GDSState>((set, get) => ({
 
     try {
       // Fetch initial data
-      const [usersRes, itemsRes, tasksRes] = await Promise.all([
+      const [usersRes, itemsRes, tasksRes, eventsRes, annRes] = await Promise.all([
         supabase.from('users').select('*'),
         supabase.from('occupied_items').select('*'),
-        supabase.from('tasks').select('*')
+        supabase.from('tasks').select('*'),
+        supabase.from('events').select('*'),
+        supabase.from('announcements').select('*').order('created_at', { ascending: false })
       ]);
 
       if (usersRes.data) {
-        set({ users: usersRes.data.map(u => ({ ...u, avatar: u.avatar_url })) });
+        set({ users: usersRes.data.map(u => ({ ...u, avatar: u.avatar_url, isAdmin: u.is_admin, roles: u.roles || [] })) });
       }
       if (itemsRes.data) {
         set({ occupiedItems: itemsRes.data.map(i => ({ 
-          id: i.id, name: i.name, type: i.type, occupiedBy: i.locked_by, 
+          id: i.id, name: i.name, type: i.type as ItemType, occupiedBy: i.locked_by, 
           lastUpdated: new Date(i.last_updated).getTime() 
         })) });
       }
       if (tasksRes.data) {
         set({ tasks: tasksRes.data.map(t => ({ 
-          id: t.id, title: t.title, description: t.description, assignedTo: t.assigned_to, status: t.status 
+          id: t.id, title: t.title, description: t.description, assignedTo: t.assigned_to, status: t.status as TaskStatusType 
+        })) });
+      }
+      if (eventsRes.data) {
+        set({ events: eventsRes.data.map(e => ({
+          id: e.id, title: e.title, description: e.description, date: Number(e.date), type: e.type as EventType
+        })) });
+      }
+      if (annRes.data) {
+        set({ announcements: annRes.data.map(a => ({
+          id: a.id, text: a.text, userId: a.user_id, createdAt: Number(a.created_at)
         })) });
       }
 
@@ -173,8 +185,39 @@ export const useStore = create<GDSState>((set, get) => ({
           supabase!.from('tasks').select('*').then(res => {
             if (res.data) {
               set({ tasks: res.data.map(t => ({ 
-                id: t.id, title: t.title, description: t.description, assignedTo: t.assigned_to, status: t.status 
+                id: t.id, title: t.title, description: t.description, assignedTo: t.assigned_to, status: t.status as TaskStatusType 
               })) });
+            }
+          });
+        }).subscribe();
+
+      supabase.channel('public:events')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'events' }, () => {
+          supabase!.from('events').select('*').then(res => {
+            if (res.data) {
+              set({ events: res.data.map(e => ({
+                id: e.id, title: e.title, description: e.description, date: Number(e.date), type: e.type as EventType
+              })) });
+            }
+          });
+        }).subscribe();
+
+      supabase.channel('public:announcements')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'announcements' }, () => {
+          supabase!.from('announcements').select('*').order('created_at', { ascending: false }).then(res => {
+            if (res.data) {
+              set({ announcements: res.data.map(a => ({
+                id: a.id, text: a.text, userId: a.user_id, createdAt: Number(a.created_at)
+              })) });
+            }
+          });
+        }).subscribe();
+
+      supabase.channel('public:users')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'users' }, () => {
+          supabase!.from('users').select('*').then(res => {
+            if (res.data) {
+              set({ users: res.data.map(u => ({ ...u, avatar: u.avatar_url, isAdmin: u.is_admin, roles: u.roles || [] })) });
             }
           });
         }).subscribe();
@@ -196,16 +239,21 @@ export const useStore = create<GDSState>((set, get) => ({
     })),
 
   updateUserProfile: async (userId, updates) => {
+    // Optimistic UI update
+    set((state) => {
+      const updatedUsers = state.users.map(u => u.id === userId ? { ...u, ...updates } : u);
+      return {
+        users: updatedUsers,
+        currentUser: state.currentUser?.id === userId ? { ...state.currentUser, ...updates } : state.currentUser
+      };
+    });
+    
     if (hasSupabase && supabase) {
-      // Logic for supabase profiles would go here
-    } else {
-      set((state) => {
-        const updatedUsers = state.users.map(u => u.id === userId ? { ...u, ...updates } : u);
-        return {
-          users: updatedUsers,
-          currentUser: state.currentUser?.id === userId ? { ...state.currentUser, ...updates } : state.currentUser
-        };
-      });
+      await supabase.from('users').update({
+        name: updates.name,
+        avatar_url: updates.avatar,
+        roles: updates.roles
+      }).eq('id', userId);
     }
   },
 
@@ -340,12 +388,12 @@ export const useStore = create<GDSState>((set, get) => ({
         type
     };
 
+    set((state) => ({ events: [...state.events, newEvent] }));
+
     if (hasSupabase && supabase) {
-        // Assume an 'events' table exists, bypassing for local store execution as requested
-    } else {
-        set((state) => ({
-            events: [...state.events, newEvent]
-        }));
+        await supabase.from('events').insert({
+          id, title, description, date: date.getTime(), type
+        });
     }
   },
 
@@ -356,10 +404,13 @@ export const useStore = create<GDSState>((set, get) => ({
       userId,
       createdAt: Date.now()
     };
+    
+    set((state) => ({ announcements: [newAnnounce, ...state.announcements] }));
+
     if (hasSupabase && supabase) {
-      // db logic
-    } else {
-      set((state) => ({ announcements: [newAnnounce, ...state.announcements] }));
+      await supabase.from('announcements').insert({
+        id: newAnnounce.id, text, user_id: userId, created_at: newAnnounce.createdAt
+      });
     }
   }
 }));

@@ -5,7 +5,9 @@ CREATE TABLE public.users (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
   avatar_url TEXT NOT NULL,
-  status TEXT NOT NULL DEFAULT 'offline'
+  status TEXT NOT NULL DEFAULT 'offline',
+  roles TEXT[] DEFAULT '{}',
+  is_admin BOOLEAN DEFAULT false
 );
 
 -- 2. Occupied Items Table (For locking Scenes/Prefabs/Scripts)
@@ -22,9 +24,26 @@ CREATE TABLE public.tasks (
   id TEXT PRIMARY KEY,
   title TEXT NOT NULL,
   description TEXT,
-  status TEXT NOT NULL, -- 'To Do', 'In Progress', 'Done', 'Debt'
+  status TEXT NOT NULL, -- 'todo', 'progress', 'done', 'debt'
   assigned_to TEXT REFERENCES public.users(id),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- 4. Events Table (Calendar)
+CREATE TABLE public.events (
+  id TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  description TEXT,
+  date BIGINT NOT NULL,
+  type TEXT NOT NULL
+);
+
+-- 5. Announcements Table
+CREATE TABLE public.announcements (
+  id TEXT PRIMARY KEY,
+  text TEXT NOT NULL,
+  user_id TEXT REFERENCES public.users(id),
+  created_at BIGINT NOT NULL
 );
 
 -- Enable Row Level Security (RLS) - Optional for internal tools but good practice
@@ -45,12 +64,20 @@ CREATE POLICY "Allow anonymous read" ON public.tasks FOR SELECT USING (true);
 CREATE POLICY "Allow anonymous insert" ON public.tasks FOR INSERT WITH CHECK (true);
 CREATE POLICY "Allow anonymous update" ON public.tasks FOR UPDATE USING (true);
 
+ALTER TABLE public.events ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow anonymous read" ON public.events FOR SELECT USING (true);
+CREATE POLICY "Allow anonymous insert" ON public.events FOR INSERT WITH CHECK (true);
+
+ALTER TABLE public.announcements ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow anonymous read" ON public.announcements FOR SELECT USING (true);
+CREATE POLICY "Allow anonymous insert" ON public.announcements FOR INSERT WITH CHECK (true);
+
 -- Insert Mock Data
-INSERT INTO public.users (id, name, avatar_url, status) VALUES 
-('1', 'Koray (Lead)', 'https://api.dicebear.com/7.x/avataaars/svg?seed=Koray', 'online'),
-('2', 'Sam (Art)', 'https://api.dicebear.com/7.x/avataaars/svg?seed=Sam', 'online'),
-('3', 'Jordan (Code)', 'https://api.dicebear.com/7.x/avataaars/svg?seed=Jordan', 'away'),
-('4', 'Alex (Design)', 'https://api.dicebear.com/7.x/avataaars/svg?seed=Alex', 'offline');
+INSERT INTO public.users (id, name, avatar_url, status, roles, is_admin) VALUES 
+('1', 'Koray (Lead)', 'https://api.dicebear.com/7.x/avataaars/svg?seed=Koray', 'online', ARRAY['Lead'], true),
+('2', 'Sam (Art)', 'https://api.dicebear.com/7.x/avataaars/svg?seed=Sam', 'online', ARRAY['Art'], false),
+('3', 'Jordan (Code)', 'https://api.dicebear.com/7.x/avataaars/svg?seed=Jordan', 'away', ARRAY['Code'], false),
+('4', 'Alex (Design)', 'https://api.dicebear.com/7.x/avataaars/svg?seed=Alex', 'offline', ARRAY['Design'], false);
 
 INSERT INTO public.occupied_items (id, name, type, locked_by) VALUES
 ('1', 'MainMenu.unity', 'Scene', '1'),
@@ -60,8 +87,8 @@ INSERT INTO public.occupied_items (id, name, type, locked_by) VALUES
 ('5', 'GameManager.cs', 'Script', NULL);
 
 INSERT INTO public.tasks (id, title, status, assigned_to) VALUES
-('t1', 'Fix jumping physics bug', 'In Progress', '3'),
-('t2', 'Design Level 2 layout', 'To Do', '4'),
-('t3', 'Create main character animations', 'In Progress', '2'),
-('t4', 'Implement audio manager', 'Done', '1'),
-('t5', 'Refactor UI code (Technical Debt)', 'Debt', '1');
+('t1', 'Fix jumping physics bug', 'progress', '3'),
+('t2', 'Design Level 2 layout', 'todo', '4'),
+('t3', 'Create main character animations', 'progress', '2'),
+('t4', 'Implement audio manager', 'done', '1'),
+('t5', 'Refactor UI code (Technical Debt)', 'debt', '1');
