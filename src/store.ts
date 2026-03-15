@@ -275,33 +275,31 @@ export const useStore = create<GDSState>((set, get) => ({
 
   addOccupiedItem: async (name, type) => {
     const newItemId = `new_${Date.now()}`;
+    const newItem: OccupiedItem = { id: newItemId, name, type, occupiedBy: null, lastUpdated: Date.now() };
+    // Optimistic update — show immediately for the current user
+    set((state) => ({ occupiedItems: [...state.occupiedItems, newItem] }));
     if (hasSupabase && supabase) {
       await supabase.from('occupied_items').insert({ id: newItemId, name, type });
-    } else {
-      set((state) => {
-        const newItem: OccupiedItem = { id: newItemId, name, type, occupiedBy: null, lastUpdated: Date.now() };
-        return { occupiedItems: [...state.occupiedItems, newItem] };
-      });
     }
   },
 
   removeOccupiedItem: async (itemId) => {
+    // Optimistic update
+    set((state) => ({ occupiedItems: state.occupiedItems.filter(i => i.id !== itemId) }));
     if (hasSupabase && supabase) {
       await supabase.from('occupied_items').delete().eq('id', itemId);
-    } else {
-      set((state) => ({ occupiedItems: state.occupiedItems.filter(i => i.id !== itemId) }));
     }
   },
 
   renameOccupiedItem: async (itemId, newName) => {
+    // Optimistic update
+    set((state) => ({
+      occupiedItems: state.occupiedItems.map(i => 
+        i.id === itemId ? { ...i, name: newName } : i
+      )
+    }));
     if (hasSupabase && supabase) {
       await supabase.from('occupied_items').update({ name: newName }).eq('id', itemId);
-    } else {
-      set((state) => ({
-        occupiedItems: state.occupiedItems.map(i => 
-          i.id === itemId ? { ...i, name: newName } : i
-        )
-      }));
     }
   },
 
@@ -320,18 +318,17 @@ export const useStore = create<GDSState>((set, get) => ({
       return; // Locked by someone else
     }
 
+    // Optimistic update — show lock/unlock immediately
+    set((state) => ({
+      occupiedItems: state.occupiedItems.map(i => 
+        i.id === itemId ? { ...i, occupiedBy: newOccupiedBy, lastUpdated: Date.now() } : i
+      )
+    }));
+
     if (hasSupabase && supabase) {
-      // Optimistic upate missing for simplicity, wait for db
       await supabase.from('occupied_items').update({ 
         locked_by: newOccupiedBy, last_updated: new Date().toISOString() 
       }).eq('id', itemId);
-      // It'll be updated by realtime subscription
-    } else {
-      set((state) => ({
-        occupiedItems: state.occupiedItems.map(i => 
-          i.id === itemId ? { ...i, occupiedBy: newOccupiedBy, lastUpdated: Date.now() } : i
-        )
-      }));
     }
   },
 
