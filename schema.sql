@@ -21,6 +21,7 @@ CREATE TABLE public.occupied_items (
 CREATE TABLE public.tasks (
   id TEXT PRIMARY KEY,
   title TEXT NOT NULL,
+  description TEXT,
   status TEXT NOT NULL, -- 'To Do', 'In Progress', 'Done', 'Debt'
   assigned_to TEXT REFERENCES public.users(id),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()

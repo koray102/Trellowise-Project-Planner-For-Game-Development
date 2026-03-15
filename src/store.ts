@@ -24,8 +24,19 @@ export interface OccupiedItem {
 export interface TaskItem {
   id: string;
   title: string;
+  description?: string;
   assignedTo: string; // User ID
   status: TaskStatusType;
+}
+
+export type EventType = 'milestone' | 'meeting' | 'deadline';
+
+export interface CalendarEvent {
+  id: string;
+  title: string;
+  description?: string;
+  date: number; // Unix timestamp
+  type: EventType;
 }
 
 export interface GDSState {
@@ -33,6 +44,7 @@ export interface GDSState {
   currentUser: User | null;
   occupiedItems: OccupiedItem[];
   tasks: TaskItem[];
+  events: CalendarEvent[];
   
   // Actions
   initDb: () => Promise<void>;
@@ -42,8 +54,12 @@ export interface GDSState {
   removeOccupiedItem: (itemId: string) => Promise<void>;
   renameOccupiedItem: (itemId: string, newName: string) => Promise<void>;
   toggleOccupiedLock: (itemId: string, userId: string) => Promise<void>;
-  addTask: (title: string, assignedTo: string, status: TaskStatusType) => Promise<void>;
+  addTask: (title: string, description: string, assignedTo: string, status: TaskStatusType) => Promise<void>;
+  removeTask: (taskId: string) => Promise<void>;
+  renameTask: (taskId: string, newTitle: string) => Promise<void>;
+  reassignTask: (taskId: string, newAssignee: string) => Promise<void>;
   moveTask: (taskId: string, newStatus: TaskStatusType) => Promise<void>;
+  addEvent: (title: string, description: string, date: Date, type: EventType) => Promise<void>;
 }
 
 // Initial Mock Users (4-person Unity Team)
@@ -63,11 +79,20 @@ const MOCK_OCCUPIED: OccupiedItem[] = [
 ];
 
 const MOCK_TASKS: TaskItem[] = [
-  { id: 't1', title: 'Fix jumping physics bug', assignedTo: '3', status: 'progress' },
-  { id: 't2', title: 'Design Level 2 layout', assignedTo: '4', status: 'todo' },
-  { id: 't3', title: 'Create main character animations', assignedTo: '2', status: 'progress' },
-  { id: 't4', title: 'Implement audio manager', assignedTo: '1', status: 'done' },
-  { id: 't5', title: 'Refactor UI code (Technical Debt)', assignedTo: '1', status: 'debt' },
+  { id: 't1', title: 'Fix jumping physics bug', description: 'Player occasionally double jumps when hitting a slope.', assignedTo: '3', status: 'progress' },
+  { id: 't2', title: 'Design Level 2 layout', description: 'Focus on verticality and adding new enemy types.', assignedTo: '4', status: 'todo' },
+  { id: 't3', title: 'Create main character animations', description: 'Attack, Dash, and Idle loops.', assignedTo: '2', status: 'progress' },
+  { id: 't4', title: 'Implement audio manager', description: 'Add support for spatial 3D audio in Unity.', assignedTo: '1', status: 'done' },
+  { id: 't5', title: 'Refactor UI code (Technical Debt)', description: 'Move from old canvas system to UI Toolkit.', assignedTo: '1', status: 'debt' },
+];
+
+const MOCK_EVENTS: CalendarEvent[] = [
+  { id: 'e1', title: 'Sprint Planning', description: 'Kickoff meeting for the next 2 weeks.', date: new Date().getTime(), type: 'meeting' },
+  { id: 'e2', title: 'Level 1 Alpha Lock', description: 'All core assets must be finished for L1.', date: new Date(new Date().setDate(new Date().getDate() + 4)).getTime(), type: 'deadline' },
+  { id: 'e3', title: 'Audio Review', description: 'Reviewing the ambient noises in Sector 4.', date: new Date(new Date().setDate(new Date().getDate() + 2)).getTime(), type: 'meeting' },
+  { id: 'e4', title: 'Pre-production wrap', description: 'Final meeting before alpha coding phase begins.', date: new Date(new Date().setDate(new Date().getDate() - 5)).getTime(), type: 'milestone' },
+  { id: 'e5', title: 'Marketing sync', description: 'Discussing trailer assets.', date: new Date(new Date().setDate(new Date().getDate() - 1)).getTime(), type: 'meeting' },
+  { id: 'e6', title: 'Beta Branch Cut', date: new Date(new Date().setDate(new Date().getDate() + 8)).getTime(), type: 'deadline' },
 ];
 
 export const useStore = create<GDSState>((set, get) => ({
@@ -75,6 +100,7 @@ export const useStore = create<GDSState>((set, get) => ({
   currentUser: MOCK_USERS[0],
   occupiedItems: MOCK_OCCUPIED,
   tasks: MOCK_TASKS,
+  events: MOCK_EVENTS,
 
   initDb: async () => {
     if (!hasSupabase || !supabase) {
@@ -101,7 +127,7 @@ export const useStore = create<GDSState>((set, get) => ({
       }
       if (tasksRes.data) {
         set({ tasks: tasksRes.data.map(t => ({ 
-          id: t.id, title: t.title, assignedTo: t.assigned_to, status: t.status 
+          id: t.id, title: t.title, description: t.description, assignedTo: t.assigned_to, status: t.status 
         })) });
       }
 
@@ -124,7 +150,7 @@ export const useStore = create<GDSState>((set, get) => ({
           supabase!.from('tasks').select('*').then(res => {
             if (res.data) {
               set({ tasks: res.data.map(t => ({ 
-                id: t.id, title: t.title, assignedTo: t.assigned_to, status: t.status 
+                id: t.id, title: t.title, description: t.description, assignedTo: t.assigned_to, status: t.status 
               })) });
             }
           });
@@ -207,13 +233,41 @@ export const useStore = create<GDSState>((set, get) => ({
     }
   },
 
-  addTask: async (title, assignedTo, status) => {
+  addTask: async (title, description, assignedTo, status) => {
     const id = `task_${Date.now()}`;
     if (hasSupabase && supabase) {
-      await supabase.from('tasks').insert({ id, title, assigned_to: assignedTo, status });
+      await supabase.from('tasks').insert({ id, title, description, assigned_to: assignedTo, status });
     } else {
       set((state) => ({
-        tasks: [...state.tasks, { id, title, assignedTo, status }]
+        tasks: [...state.tasks, { id, title, description, assignedTo, status }]
+      }));
+    }
+  },
+
+  removeTask: async (taskId) => {
+    if (hasSupabase && supabase) {
+      await supabase.from('tasks').delete().eq('id', taskId);
+    } else {
+      set((state) => ({ tasks: state.tasks.filter(t => t.id !== taskId) }));
+    }
+  },
+
+  renameTask: async (taskId, newTitle) => {
+    if (hasSupabase && supabase) {
+      await supabase.from('tasks').update({ title: newTitle }).eq('id', taskId);
+    } else {
+      set((state) => ({
+        tasks: state.tasks.map(t => t.id === taskId ? { ...t, title: newTitle } : t)
+      }));
+    }
+  },
+
+  reassignTask: async (taskId, newAssignee) => {
+    if (hasSupabase && supabase) {
+      await supabase.from('tasks').update({ assigned_to: newAssignee }).eq('id', taskId);
+    } else {
+      set((state) => ({
+        tasks: state.tasks.map(t => t.id === taskId ? { ...t, assignedTo: newAssignee } : t)
       }));
     }
   },
@@ -225,6 +279,25 @@ export const useStore = create<GDSState>((set, get) => ({
       set((state) => ({
         tasks: state.tasks.map(t => t.id === taskId ? { ...t, status: newStatus } : t)
       }));
+    }
+  },
+
+  addEvent: async (title, description, date, type) => {
+    const id = `event_${Date.now()}`;
+    const newEvent: CalendarEvent = {
+        id,
+        title,
+        description,
+        date: date.getTime(),
+        type
+    };
+
+    if (hasSupabase && supabase) {
+        // Assume an 'events' table exists, bypassing for local store execution as requested
+    } else {
+        set((state) => ({
+            events: [...state.events, newEvent]
+        }));
     }
   }
 }));

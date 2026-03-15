@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { useStore, type TaskStatusType, type TaskItem } from '../store';
 import { 
   DndContext, 
@@ -8,6 +8,7 @@ import {
   PointerSensor, 
   useSensor, 
   useSensors, 
+  useDroppable,
   type DragStartEvent, 
   type DragEndEvent 
 } from '@dnd-kit/core';
@@ -18,7 +19,7 @@ import {
   useSortable
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Plus, GripVertical, AlertCircle, CheckCircle2, Circle, Clock } from 'lucide-react';
+import { Plus, GripVertical, AlertCircle, CheckCircle2, Circle, Clock, MoreHorizontal, Trash2 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
@@ -51,7 +52,23 @@ const STATUS_COLORS: Record<TaskStatusType, string> = {
 // --- COMPONENTS ---
 
 function SortableTaskItem({ task }: { task: TaskItem }) {
-  const { users } = useStore();
+  const { users, removeTask, renameTask, reassignTask } = useStore();
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [isEditingAssignee, setIsEditingAssignee] = useState(false);
+  const [editTitle, setEditTitle] = useState(task.title);
+  const [showMenu, setShowMenu] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setShowMenu(false);
+      }
+    }
+    if (showMenu) document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showMenu]);
+
   const {
     attributes,
     listeners,
@@ -69,32 +86,125 @@ function SortableTaskItem({ task }: { task: TaskItem }) {
   const assignee = users.find(u => u.id === task.assignedTo);
   const StatusIcon = STATUS_ICONS[task.status];
 
+  const handleRenameSubmit = () => {
+    if (editTitle.trim().length > 0 && editTitle !== task.title) {
+      renameTask(task.id, editTitle.trim());
+    }
+    setIsEditingTitle(false);
+  };
+
   return (
     <div
       ref={setNodeRef}
       style={style}
       className={cn(
         "group p-3 rounded-lg border bg-zinc-900 border-zinc-800 shadow-sm flex flex-col gap-3",
-        isDragging ? "opacity-30 border-indigo-500" : "hover:border-zinc-700 hover:shadow-md transition-all cursor-grab active:cursor-grabbing"
+        isDragging ? "opacity-30 border-indigo-500" : "hover:border-zinc-700 hover:shadow-md transition-all",
+        !isEditingTitle && !isEditingAssignee ? "cursor-grab active:cursor-grabbing" : ""
       )}
-      {...attributes}
-      {...listeners}
+      {...(!isEditingTitle && !isEditingAssignee ? attributes : {})}
+      {...(!isEditingTitle && !isEditingAssignee ? listeners : {})}
     >
-      <div className="flex items-start gap-2">
-        <GripVertical className="w-4 h-4 text-zinc-600 shrink-0 mt-0.5" />
-        <span className="text-sm font-medium text-zinc-200 leading-snug">{task.title}</span>
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex items-start gap-2 flex-1">
+          <GripVertical className="w-4 h-4 text-zinc-600 shrink-0 mt-0.5" />
+          {isEditingTitle ? (
+            <input
+              autoFocus
+              value={editTitle}
+              onChange={(e) => setEditTitle(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleRenameSubmit();
+                if (e.key === 'Escape') {
+                  setEditTitle(task.title);
+                  setIsEditingTitle(false);
+                }
+              }}
+              onBlur={handleRenameSubmit}
+              className="bg-zinc-950 border border-indigo-500 rounded px-1.5 py-0.5 text-sm font-medium text-zinc-200 outline-none w-full leading-snug"
+            />
+          ) : (
+            <span className="text-sm font-medium text-zinc-200 leading-snug break-words">{task.title}</span>
+          )}
+        </div>
+        
+        {/* Menu and Delete */}
+        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+          <div ref={menuRef} className="relative">
+             <button
+               onClick={(e) => { e.stopPropagation(); setShowMenu(!showMenu); }}
+               className={cn("p-1 rounded-md transition-colors", showMenu ? "bg-zinc-800 text-zinc-200" : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800")}
+               title="More options"
+             >
+               <MoreHorizontal className="w-3.5 h-3.5" />
+             </button>
+             
+             {showMenu && (
+               <div className="absolute right-0 top-full mt-1 w-36 bg-zinc-900 border border-zinc-800 rounded-lg shadow-xl py-1 z-[100] overflow-hidden">
+                 <button 
+                   onClick={(e) => { e.stopPropagation(); setIsEditingTitle(true); setShowMenu(false); }}
+                   className="w-full text-left px-3 py-1.5 text-xs text-zinc-300 hover:bg-indigo-500/20 hover:text-indigo-400 transition-colors"
+                 >
+                   Rename Task
+                 </button>
+                 <button 
+                   onClick={(e) => { e.stopPropagation(); setIsEditingAssignee(true); setShowMenu(false); }}
+                   className="w-full text-left px-3 py-1.5 text-xs text-zinc-300 hover:bg-indigo-500/20 hover:text-indigo-400 transition-colors"
+                 >
+                   Change Assignee
+                 </button>
+               </div>
+             )}
+          </div>
+          
+          <button
+            onClick={(e) => { e.stopPropagation(); removeTask(task.id); }}
+            className="p-1 text-zinc-500 hover:text-red-400 hover:bg-red-400/10 rounded-md transition-colors"
+            title="Delete task"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+          </button>
+        </div>
       </div>
       
-      <div className="flex items-center justify-between pl-6">
+      {task.description && (
+        <p className="text-xs text-zinc-400 pl-6 line-clamp-2">{task.description}</p>
+      )}
+      
+      <div className="flex items-center justify-between pl-6 pt-1">
         <StatusIcon className={cn("w-4 h-4", STATUS_COLORS[task.status])} />
-        {assignee && (
-          <img 
-            src={assignee.avatar} 
-            alt={assignee.name} 
-            title={assignee.name}
-            className="w-5 h-5 rounded-full bg-zinc-800 ring-1 ring-zinc-700" 
-          />
-        )}
+        
+        {isEditingAssignee ? (
+           <select 
+             autoFocus
+             value={task.assignedTo}
+             onChange={(e) => {
+               reassignTask(task.id, e.target.value);
+               setIsEditingAssignee(false);
+             }}
+             onBlur={() => setIsEditingAssignee(false)}
+             className="bg-zinc-950 border border-indigo-500 rounded px-2 py-0.5 text-[10px] font-bold uppercase text-indigo-400 outline-none cursor-pointer"
+           >
+             {users.map(u => (
+               <option key={u.id} value={u.id}>{u.name.split(' ')[0]}</option>
+             ))}
+           </select>
+        ) : assignee ? (
+           <div 
+             className="flex items-center gap-1.5 shrink-0 bg-zinc-950 px-2 py-0.5 rounded-full border border-zinc-800/80 cursor-pointer hover:border-zinc-600 transition-colors"
+             onClick={(e) => { e.stopPropagation(); setIsEditingAssignee(true); }}
+             title="Click to change assignee"
+           >
+             <img 
+               src={assignee.avatar} 
+               alt={assignee.name} 
+               className="w-4 h-4 rounded-full bg-zinc-800 shrink-0" 
+             />
+             <span className="text-[10px] font-bold uppercase tracking-wide text-zinc-400">
+               {assignee.name.split(' ')[0]}
+             </span>
+           </div>
+        ) : null}
       </div>
     </div>
   );
@@ -111,6 +221,8 @@ function Column({
   tasks: TaskItem[];
   onAddTask: (status: TaskStatusType) => void;
 }) {
+  const { setNodeRef } = useDroppable({ id, data: { type: 'Column' } });
+
   return (
     <div className="flex flex-col bg-zinc-950/50 rounded-xl border border-zinc-800/60 w-80 shrink-0 h-full max-h-full">
       {/* Column Header */}
@@ -130,9 +242,9 @@ function Column({
       </div>
 
       {/* Column Body / Droppable Area */}
-      <div className="flex-1 p-3 overflow-y-auto min-h-[150px]">
+      <div ref={setNodeRef} className="flex-1 p-3 overflow-y-auto min-h-[150px]">
         <SortableContext items={tasks.map(t => t.id)} strategy={verticalListSortingStrategy}>
-          <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-3 min-h-full">
             {tasks.map(task => (
               <SortableTaskItem key={task.id} task={task} />
             ))}
@@ -151,9 +263,18 @@ export function Tasks() {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [filteredUserId, setFilteredUserId] = useState<string | null>(null);
 
-  // New task modal state (simplified for demo)
+  // New task modal state
   const [isAddingTask, setIsAddingTask] = useState<TaskStatusType | null>(null);
   const [newTaskTitle, setNewTaskTitle] = useState('');
+  const [newTaskDesc, setNewTaskDesc] = useState('');
+  const [newTaskAssignee, setNewTaskAssignee] = useState<string>('');
+  
+  // Set default assignee to current user when opening the modal
+  useEffect(() => {
+    if (isAddingTask && currentUser) {
+      setNewTaskAssignee(filteredUserId || currentUser.id);
+    }
+  }, [isAddingTask, currentUser, filteredUserId]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -185,27 +306,33 @@ export function Tasks() {
     const activeTaskId = active.id as string;
     const overId = over.id as string;
 
-    // Simplified drop logic: we need to figure out which column the drop happened in.
-    // In dnd-kit, we're dropping either on a task (SortableTaskItem) or on a column itself.
-    
-    // Find the task we are dragging
     const activeTaskData = tasks.find(t => t.id === activeTaskId);
     if (!activeTaskData) return;
 
-    // Find what we dropped it on
+    // Determine target status layout
     const overTaskData = tasks.find(t => t.id === overId);
+    let newStatus: TaskStatusType;
+    if (overTaskData) {
+      newStatus = overTaskData.status;
+    } else {
+      const validColumn = COLUMNS.find(c => c.id === overId);
+      if (validColumn) {
+        newStatus = validColumn.id;
+      } else {
+        return;
+      }
+    }
 
-     // Simple Status Update Hack for the demo: 
-     // If we drop on a different task, take its status
-     if (overTaskData && overTaskData.status !== activeTaskData.status) {
-         moveTask(activeTaskId, overTaskData.status);
-     }
+    if (newStatus !== activeTaskData.status) {
+       moveTask(activeTaskId, newStatus);
+    }
   };
 
   const handleCreateTask = () => {
-    if (newTaskTitle.trim() && isAddingTask && currentUser) {
-      addTask(newTaskTitle.trim(), filteredUserId || currentUser.id, isAddingTask);
+    if (newTaskTitle.trim() && isAddingTask && newTaskAssignee) {
+      addTask(newTaskTitle.trim(), newTaskDesc.trim(), newTaskAssignee, isAddingTask);
       setNewTaskTitle('');
+      setNewTaskDesc('');
       setIsAddingTask(null);
     }
   };
@@ -285,26 +412,60 @@ export function Tasks() {
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-zinc-950 border border-zinc-800 p-6 rounded-xl w-full max-w-md shadow-2xl">
             <h3 className="text-lg font-semibold mb-4 text-zinc-100">Add New Task to {COLUMNS.find(c => c.id === isAddingTask)?.title}</h3>
-            <input 
-              autoFocus
-              type="text"
-              placeholder="Task title..."
-              value={newTaskTitle}
-              onChange={(e) => setNewTaskTitle(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleCreateTask()}
-              className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-4 py-3 text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 mb-6"
-            />
+            
+            <div className="space-y-4 mb-6">
+              <div>
+                <label className="block text-xs font-medium text-zinc-500 mb-1">Title <span className="text-red-500">*</span></label>
+                <input 
+                  autoFocus
+                  type="text"
+                  placeholder="Task title..."
+                  value={newTaskTitle}
+                  onChange={(e) => setNewTaskTitle(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleCreateTask();
+                    if (e.key === 'Escape') setIsAddingTask(null);
+                  }}
+                  className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-4 py-2.5 text-white placeholder-zinc-600 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-xs font-medium text-zinc-500 mb-1">Description (Optional)</label>
+                <textarea 
+                  placeholder="Add details..."
+                  value={newTaskDesc}
+                  onChange={(e) => setNewTaskDesc(e.target.value)}
+                  className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-4 py-2.5 text-white placeholder-zinc-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 min-h-[80px] resize-none"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-xs font-medium text-zinc-500 mb-1">Assign To <span className="text-red-500">*</span></label>
+                <select 
+                  value={newTaskAssignee}
+                  onChange={(e) => setNewTaskAssignee(e.target.value)}
+                  className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                >
+                  <option value="" disabled>Select team member...</option>
+                  {users.map(u => (
+                    <option key={u.id} value={u.id}>{u.name}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
             <div className="flex justify-end gap-3">
               <button 
                 onClick={() => setIsAddingTask(null)}
-                className="px-4 py-2 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors"
+                className="px-4 py-2 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors font-medium text-sm"
               >
                 Cancel
               </button>
               <button 
                 onClick={handleCreateTask}
-                disabled={!newTaskTitle.trim()}
-                className="px-4 py-2 rounded-lg bg-indigo-500 text-white font-medium hover:bg-indigo-600 disabled:bg-zinc-800 disabled:text-zinc-600 transition-colors"
+                disabled={!newTaskTitle.trim() || !newTaskAssignee}
+                className="px-4 py-2 rounded-lg bg-indigo-500 text-white font-medium hover:bg-indigo-600 disabled:bg-zinc-800 disabled:text-zinc-600 transition-colors text-sm shadow-md"
               >
                 Create Task
               </button>
