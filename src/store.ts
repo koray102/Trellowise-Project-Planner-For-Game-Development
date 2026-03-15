@@ -142,7 +142,10 @@ export const useStore = create<GDSState>((set, get) => ({
       ]);
 
       if (usersRes.data) {
-        set({ users: usersRes.data.map(u => ({ ...u, avatar: u.avatar_url, isAdmin: u.is_admin, roles: u.roles || [] })) });
+        const updatedUsers = usersRes.data.map(u => ({ ...u, avatar: u.avatar_url, isAdmin: u.is_admin, roles: u.roles || [] }));
+        const prevCurrentUserId = get().currentUser?.id;
+        const newCurrentUser = updatedUsers.find(u => u.id === prevCurrentUserId) ?? updatedUsers[0] ?? null;
+        set({ users: updatedUsers, currentUser: newCurrentUser });
       }
       if (itemsRes.data) {
         set({ occupiedItems: itemsRes.data.map(i => ({ 
@@ -162,7 +165,7 @@ export const useStore = create<GDSState>((set, get) => ({
       }
       if (annRes.data) {
         set({ announcements: annRes.data.map(a => ({
-          id: a.id, text: a.text, userId: a.user_id, createdAt: Number(a.created_at)
+          id: a.id, text: a.text, userId: a.user_id, createdAt: new Date(a.created_at).getTime()
         })) });
       }
 
@@ -217,7 +220,10 @@ export const useStore = create<GDSState>((set, get) => ({
         .on('postgres_changes', { event: '*', schema: 'public', table: 'users' }, () => {
           supabase!.from('users').select('*').then(res => {
             if (res.data) {
-              set({ users: res.data.map(u => ({ ...u, avatar: u.avatar_url, isAdmin: u.is_admin, roles: u.roles || [] })) });
+              const updatedUsers = res.data.map(u => ({ ...u, avatar: u.avatar_url, isAdmin: u.is_admin, roles: u.roles || [] }));
+              const prevId = get().currentUser?.id;
+              const newCurrentUser = updatedUsers.find(u => u.id === prevId) ?? updatedUsers[0] ?? null;
+              set({ users: updatedUsers, currentUser: newCurrentUser });
             }
           });
         }).subscribe();
