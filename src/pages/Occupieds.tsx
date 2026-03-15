@@ -230,8 +230,7 @@ function OccupiedsAllColumn() {
       normalizeString(item.name).includes(normalizedSearch)
     );
 
-    result.sort((a, b) => b.lastUpdated - a.lastUpdated);
-    return result;
+    return [...result].sort((a, b) => b.lastUpdated - a.lastUpdated);
   }, [occupiedItems, searchTerm]);
 
   return (
@@ -286,8 +285,7 @@ function UserColumn({ user }: { user: User }) {
       normalizeString(item.name).includes(normalizedSearch)
     );
 
-    result.sort((a, b) => b.lastUpdated - a.lastUpdated);
-    return result;
+    return [...result].sort((a, b) => b.lastUpdated - a.lastUpdated);
   }, [occupiedItems, searchTerm, user.id]);
 
   return (
@@ -346,14 +344,12 @@ function OccupiedsColumn({ type }: { type: ItemType }) {
       normalizeString(item.name).includes(normalizedSearch)
     );
 
-    result.sort((a, b) => {
+    return [...result].sort((a, b) => {
       if ((a.occupiedBy && b.occupiedBy) || (!a.occupiedBy && !b.occupiedBy)) {
         return b.lastUpdated - a.lastUpdated;
       }
       return a.occupiedBy ? -1 : 1;
     });
-
-    return result;
   }, [columnItems, searchTerm]);
 
   const handleCreate = () => {
