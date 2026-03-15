@@ -115,13 +115,13 @@ function OccupiedItemCard({ item }: { item: OccupiedItem }) {
         {isLocked && occupant && (
           <div className="flex items-center gap-1.5 shrink-0 bg-zinc-950 px-2 py-0.5 rounded-full border border-zinc-800/80">
             <img 
-              src={occupant.avatar} 
-              alt={occupant.name} 
-              title={`Locked by ${occupant.name}`}
+              src={occupant.avatar || ''} 
+              alt={occupant.name || 'User'} 
+              title={`Locked by ${occupant.name || 'Unknown'}`}
               className="w-4 h-4 rounded-full bg-zinc-800 shrink-0" 
             />
             <span className={cn("text-[10px] font-bold uppercase tracking-wide", lockedByMe ? "text-indigo-400" : "text-red-400")}>
-              {occupant.name.split(' ')[0]}
+              {(occupant.name || 'Unknown').split(' ')[0]}
             </span>
           </div>
         )}
@@ -191,7 +191,7 @@ function OccupiedItemCard({ item }: { item: OccupiedItem }) {
                   : "bg-zinc-900 border border-zinc-800 text-zinc-600 cursor-not-allowed"
                 : "bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white border border-transparent"
             )}
-            title={isLocked && !lockedByMe ? `Locked by ${occupant?.name}` : "Click to lock this item"}
+            title={isLocked && !lockedByMe ? `Locked by ${occupant?.name || 'Unknown'}` : "Click to lock this item"}
           >
             {isLocked ? (
               lockedByMe ? (
@@ -293,9 +293,9 @@ function UserColumn({ user }: { user: User }) {
       <div className="p-4 flex flex-col gap-4 border-b border-zinc-800/40 bg-zinc-900/20 rounded-t-xl group">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <img src={user.avatar} alt={user.name} className="w-5 h-5 rounded-full bg-zinc-800 ring-1 ring-zinc-700" />
+            <img src={user.avatar || ''} alt={user.name || 'User'} className="w-5 h-5 rounded-full bg-zinc-800 ring-1 ring-zinc-700" />
             <h3 className="font-semibold text-zinc-400 group-hover:text-zinc-300 transition-colors truncate" title={user.name}>
-              {user.name.split(' ')[0]}'s Assets
+              {(user.name || 'Unknown').split(' ')[0]}'s Assets
             </h3>
           </div>
           <span className="bg-zinc-800/80 text-zinc-500 text-xs px-2 py-0.5 rounded-full font-medium">
@@ -307,7 +307,7 @@ function UserColumn({ user }: { user: User }) {
            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-600" />
            <input
              type="text"
-             placeholder={`Search ${user.name.split(' ')[0]}'s locks...`}
+             placeholder={`Search ${(user.name || 'Unknown').split(' ')[0]}'s locks...`}
              value={searchTerm}
              onChange={(e) => setSearchTerm(e.target.value)}
              className="w-full pl-8 pr-2 py-1.5 bg-zinc-950/80 border border-zinc-800/50 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500/30 focus:border-indigo-500/50 transition-all placeholder:text-zinc-600 text-zinc-400"
