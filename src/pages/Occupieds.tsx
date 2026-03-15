@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useMemo, useEffect, useRef, Component, type ReactNode } from 'react';
 import { useStore, type ItemType, type OccupiedItem, type User } from '../store';
 import { Search, Plus, ShieldAlert, Lock, Unlock, Clock, FileJson, FileCode2, Box, Trash2, List, MoreHorizontal, User as UserIcon } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
@@ -7,6 +7,48 @@ import { twMerge } from 'tailwind-merge';
 
 function cn(...inputs: (string | undefined | null | false)[]) {
   return twMerge(clsx(inputs));
+}
+
+/** Safe wrapper for formatDistanceToNow to prevent crashes on invalid dates */
+function safeFormatDistance(timestamp: number): string {
+  try {
+    if (!timestamp || isNaN(timestamp)) return 'unknown';
+    return formatDistanceToNow(timestamp);
+  } catch {
+    return 'unknown';
+  }
+}
+
+/** Error boundary to catch render crashes and show a recovery UI instead of black screen */
+class OccupiedsErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; error: string }> {
+  constructor(props: { children: ReactNode }) {
+    super(props);
+    this.state = { hasError: false, error: '' };
+  }
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error: error.message };
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="h-full flex items-center justify-center">
+          <div className="text-center p-8 bg-zinc-900 border border-red-500/30 rounded-xl max-w-md">
+            <ShieldAlert className="w-12 h-12 text-red-400 mx-auto mb-4" />
+            <h2 className="text-xl font-bold text-zinc-200 mb-2">Something went wrong</h2>
+            <p className="text-zinc-400 text-sm mb-4">The Conflict Prevention Engine encountered an error.</p>
+            <p className="text-red-400/70 text-xs font-mono mb-4 break-all">{this.state.error}</p>
+            <button
+              onClick={() => this.setState({ hasError: false, error: '' })}
+              className="px-4 py-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg text-sm font-medium transition-colors"
+            >
+              Try Again
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
 }
 
 const TYPE_ICONS: Record<ItemType, React.ElementType> = {
@@ -55,7 +97,9 @@ function OccupiedItemCard({ item }: { item: OccupiedItem }) {
   const isLocked = !!item.occupiedBy;
   const lockedByMe = item.occupiedBy === currentUser?.id;
   const occupant = users.find(u => u.id === item.occupiedBy);
-  const Icon = TYPE_ICONS[item.type];
+  const Icon = TYPE_ICONS[item.type] || Box;
+  const typeColor = TYPE_COLORS[item.type] || 'text-zinc-400 bg-zinc-400/10 border-zinc-400/20';
+  const iconColorClass = typeColor.split(' ')[0] || 'text-zinc-400';
 
   // Close menu when clicking outside
   useEffect(() => {
@@ -88,7 +132,7 @@ function OccupiedItemCard({ item }: { item: OccupiedItem }) {
     >
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-center gap-2 min-w-0 flex-1">
-          <Icon className={cn("w-4 h-4 shrink-0", TYPE_COLORS[item.type].split(' ')[0])} />
+          <Icon className={cn("w-4 h-4 shrink-0", iconColorClass)} />
           
           {isEditing ? (
             <input
@@ -112,7 +156,7 @@ function OccupiedItemCard({ item }: { item: OccupiedItem }) {
           )}
         </div>
 
-        {isLocked && occupant && (
+        {isLocked && occupant && occupant.name && (
           <div className="flex items-center gap-1.5 shrink-0 bg-zinc-950 px-2 py-0.5 rounded-full border border-zinc-800/80">
             <img 
               src={occupant.avatar || ''} 
@@ -132,7 +176,7 @@ function OccupiedItemCard({ item }: { item: OccupiedItem }) {
           {isLocked ? (
             <div className="flex items-center gap-1 text-[10px] text-zinc-500">
               <Clock className="w-3 h-3" />
-              <span>{formatDistanceToNow(item.lastUpdated)}</span>
+              <span>{safeFormatDistance(item.lastUpdated)}</span>
             </div>
           ) : (
             <div className="w-4" /> /* spacer */
@@ -378,7 +422,7 @@ function OccupiedsColumn({ type }: { type: ItemType }) {
       <div className="p-4 flex flex-col gap-4 border-b border-zinc-800/60 bg-zinc-900/40 rounded-t-xl">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Icon className={cn("w-5 h-5", TYPE_COLORS[type].split(' ')[0])} />
+            <Icon className={cn("w-5 h-5", (TYPE_COLORS[type] || 'text-zinc-400').split(' ')[0])} />
             <h3 className="font-semibold text-zinc-200">{TYPE_LABELS[type]}</h3>
           </div>
           <span className="bg-zinc-800 text-zinc-400 text-xs px-2 py-0.5 rounded-full font-medium">
@@ -424,7 +468,7 @@ function OccupiedsColumn({ type }: { type: ItemType }) {
   );
 }
 
-export function Occupieds() {
+function OccupiedsInner() {
   const { users } = useStore();
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -446,7 +490,7 @@ export function Occupieds() {
       
       {/* Toast Notification */}
       {toastMessage && (
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 z-50 animate-in fade-in slide-in-from-top-4 duration-300 pointer-events-none">
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 z-50 pointer-events-none">
           <div className="bg-zinc-900/90 backdrop-blur-sm border border-red-500/30 text-red-200 px-4 py-2 rounded-full shadow-lg text-sm flex items-center gap-2">
              <ShieldAlert className="w-4 h-4 text-red-400 shrink-0" />
              <span dangerouslySetInnerHTML={{ __html: toastMessage.replace(/\*\*(.*?)\*\*/g, '<b>$1</b>') }} />
@@ -503,6 +547,14 @@ export function Occupieds() {
         </div>
       </div>
     </div>
+  );
+}
+
+export function Occupieds() {
+  return (
+    <OccupiedsErrorBoundary>
+      <OccupiedsInner />
+    </OccupiedsErrorBoundary>
   );
 }
 
