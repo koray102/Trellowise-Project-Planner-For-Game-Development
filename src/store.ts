@@ -60,6 +60,7 @@ export interface GDSState {
   // Actions
   initDb: () => Promise<void>;
   setCurrentUser: (userId: string) => void;
+  logoutUser: () => void;
   updateUserStatus: (userId: string, status: UserStatus) => void;
   updateUserProfile: (userId: string, updates: Partial<User>) => Promise<void>;
   addAvailableRole: (roleName: string) => Promise<void>;
@@ -85,6 +86,16 @@ const MOCK_USERS: User[] = [
 ];
 
 const MOCK_AVAILABLE_ROLES = ['Lead', 'Art', 'Code', 'Design', 'QA', 'Audio', 'Producer'];
+
+const LS_USER_KEY = 'gds-current-user';
+
+function getSavedUserId(): string | null {
+  try { return localStorage.getItem(LS_USER_KEY); } catch { return null; }
+}
+
+function saveUserId(userId: string) {
+  try { localStorage.setItem(LS_USER_KEY, userId); } catch { /* noop */ }
+}
 
 const MOCK_OCCUPIED: OccupiedItem[] = [
   { id: '1', name: 'MainMenu', type: 'scene', occupiedBy: '1', lastUpdated: Date.now() - 1000 * 60 * 30 },
@@ -116,9 +127,13 @@ const MOCK_ANNOUNCEMENTS: AnnouncementItem[] = [
   { id: 'a2', text: 'Main menu scene unlocked. Feel free to tweak UI.', userId: '3', createdAt: Date.now() - 1000 * 60 * 60 * 24 },
 ];
 
+// Restore currentUser from localStorage if possible, otherwise null (forces profile select)
+const savedId = getSavedUserId();
+const restoredUser = savedId ? MOCK_USERS.find(u => u.id === savedId) ?? null : null;
+
 export const useStore = create<GDSState>((set, get) => ({
   users: MOCK_USERS,
-  currentUser: MOCK_USERS[0],
+  currentUser: restoredUser,
   occupiedItems: MOCK_OCCUPIED,
   tasks: MOCK_TASKS,
   events: MOCK_EVENTS,
@@ -143,8 +158,10 @@ export const useStore = create<GDSState>((set, get) => ({
 
       if (usersRes.data) {
         const updatedUsers = usersRes.data.map(u => ({ ...u, avatar: u.avatar_url, isAdmin: u.is_admin, roles: u.roles || [] }));
-        const prevCurrentUserId = get().currentUser?.id;
-        const newCurrentUser = updatedUsers.find(u => u.id === prevCurrentUserId) ?? updatedUsers[0] ?? null;
+        // Restore from localStorage; if not found, keep null to force profile select
+        const savedUserId = getSavedUserId();
+        const prevCurrentUserId = savedUserId || get().currentUser?.id;
+        const newCurrentUser = prevCurrentUserId ? (updatedUsers.find(u => u.id === prevCurrentUserId) ?? null) : null;
         set({ users: updatedUsers, currentUser: newCurrentUser });
       }
       if (itemsRes.data) {
@@ -233,10 +250,17 @@ export const useStore = create<GDSState>((set, get) => ({
     }
   },
 
-  setCurrentUser: (userId) => 
+  setCurrentUser: (userId) => {
+    saveUserId(userId);
     set((state) => ({
       currentUser: state.users.find(u => u.id === userId) || state.currentUser
-    })),
+    }));
+  },
+
+  logoutUser: () => {
+    try { localStorage.removeItem(LS_USER_KEY); } catch { /* noop */ }
+    set({ currentUser: null });
+  },
 
   updateUserStatus: (userId, status) =>
     set((state) => ({

@@ -1,10 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useStore } from '../store';
 import { Link } from 'react-router-dom';
-import { Users, ShieldAlert, KanbanSquare, Activity, CheckCircle2, Settings, X, Plus } from 'lucide-react';
+import { Users, ShieldAlert, KanbanSquare, Activity, CheckCircle2, Settings, X, Plus, LogOut, ChevronDown } from 'lucide-react';
 
 export function Dashboard() {
-  const { users, currentUser, tasks, occupiedItems, updateUserProfile, availableRoles, addAvailableRole, announcements, addAnnouncement } = useStore();
+  const { users, currentUser, tasks, occupiedItems, updateUserProfile, availableRoles, addAvailableRole, announcements, addAnnouncement, setCurrentUser, logoutUser } = useStore();
   
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [editName, setEditName] = useState('');
@@ -12,6 +12,20 @@ export function Dashboard() {
   const [editRoles, setEditRoles] = useState<string[]>([]);
   const [newRole, setNewRole] = useState('');
   const [annText, setAnnText] = useState('');
+  const [switchToast, setSwitchToast] = useState<{ from: string; to: string } | null>(null);
+  const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
+  const profileDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (profileDropdownRef.current && !profileDropdownRef.current.contains(event.target as Node)) {
+        setIsProfileDropdownOpen(false);
+      }
+    }
+    if (isProfileDropdownOpen) document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isProfileDropdownOpen]);
 
   const openSettings = () => {
     if (!currentUser) return;
@@ -46,24 +60,74 @@ export function Dashboard() {
     }
   };
 
+  const handleSwitchUser = (userId: string) => {
+    const fromName = currentUser?.name || 'Unknown';
+    const toUser = users.find(u => u.id === userId);
+    if (!toUser || toUser.id === currentUser?.id) return;
+    
+    setCurrentUser(userId);
+    setIsProfileDropdownOpen(false);
+    setIsSettingsOpen(false);
+    
+    // Show switch toast
+    setSwitchToast({ from: fromName, to: toUser.name });
+    setTimeout(() => setSwitchToast(null), 3000);
+  };
+
   const myTasks = tasks.filter(t => t.assignedTo === currentUser?.id && t.status !== 'done');
   const myLocks = occupiedItems.filter(i => i.occupiedBy === currentUser?.id);
   
-  const onlineCount = users.filter(u => u.status === 'online').length;
+  const onlineUsers = users.filter(u => u.status === 'online');
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto pb-8">
+    <div className="space-y-6 max-w-7xl mx-auto pb-8 relative">
+
+      {/* User Switch Toast */}
+      {switchToast && (
+        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[100] pointer-events-none">
+          <div className="bg-zinc-900/95 backdrop-blur-sm border border-indigo-500/30 text-zinc-200 px-5 py-2.5 rounded-full shadow-2xl text-sm flex items-center gap-2">
+            <Users className="w-4 h-4 text-indigo-400 shrink-0" />
+            <span>
+              Switched from <b className="text-white">{switchToast.from}</b> to <b className="text-indigo-400">{switchToast.to}</b>
+            </span>
+          </div>
+        </div>
+      )}
       
       {/* Welcome & Overview */}
       <div className="flex flex-col md:flex-row gap-6 md:items-end justify-between">
-        <div className="flex-1 flex justify-between items-start">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight text-white mb-2">
-              Welcome back, {currentUser?.name.split(' ')[0]} 👋
-            </h1>
-            <p className="text-zinc-400">Here's what's happening in GameDev Sync today.</p>
-          </div>
+        <div className="flex-1">
+          <h1 className="text-3xl font-bold tracking-tight text-white mb-2">
+            Welcome back, {currentUser?.name.split(' ')[0]} 👋
+          </h1>
+          <p className="text-zinc-400">Here's what's happening in GameDev Sync today.</p>
+        </div>
+
+        {/* Top-Right Actions: Online Profiles → Settings → Logout */}
+        <div className="flex items-center gap-3 shrink-0">
           
+          {/* Online Profiles */}
+          <div className="flex items-center gap-4 bg-zinc-900/80 p-4 rounded-xl border border-zinc-800/80 shadow-sm">
+            <div className="flex -space-x-3">
+              {onlineUsers.map(user => (
+                <div key={user.id} className="relative group">
+                  <img 
+                    src={user.avatar} 
+                    alt={user.name} 
+                    title={user.name}
+                    className="w-10 h-10 rounded-full bg-zinc-800 ring-2 ring-zinc-900 group-hover:z-10 relative transition-transform" 
+                  />
+                  <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-zinc-900 z-20 bg-emerald-500" />
+                </div>
+              ))}
+            </div>
+            <div className="pl-4 border-l border-zinc-800">
+              <div className="text-sm font-medium text-emerald-400">{onlineUsers.length} Online</div>
+              <div className="text-xs text-zinc-500">Team Status</div>
+            </div>
+          </div>
+
+          {/* Settings Button */}
           <button 
             onClick={openSettings}
             className="p-2.5 bg-zinc-900 border border-zinc-800 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors shadow-sm"
@@ -71,28 +135,15 @@ export function Dashboard() {
           >
             <Settings className="w-5 h-5" />
           </button>
-        </div>
 
-        <div className="flex items-center gap-4 bg-zinc-900/80 p-4 rounded-xl border border-zinc-800/80 shadow-sm shrink-0">
-          <div className="flex -space-x-3">
-            {users.map(user => (
-              <div key={user.id} className="relative group">
-                <img 
-                  src={user.avatar} 
-                  alt={user.name} 
-                  className="w-10 h-10 rounded-full bg-zinc-800 ring-2 ring-zinc-900 group-hover:z-10 relative transition-transform" 
-                />
-                <div className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-zinc-900 z-20 ${
-                  user.status === 'online' ? 'bg-emerald-500' :
-                  user.status === 'away' ? 'bg-amber-500' : 'bg-zinc-500'
-                }`} />
-              </div>
-            ))}
-          </div>
-          <div className="pl-4 border-l border-zinc-800">
-            <div className="text-sm font-medium text-emerald-400">{onlineCount} Online</div>
-            <div className="text-xs text-zinc-500">Team Status</div>
-          </div>
+          {/* Logout Button */}
+          <button
+            onClick={logoutUser}
+            className="p-2.5 bg-zinc-900 border border-zinc-800 rounded-lg text-zinc-400 hover:text-red-400 hover:bg-red-500/10 hover:border-red-500/30 transition-colors shadow-sm"
+            title="Logout"
+          >
+            <LogOut className="w-5 h-5" />
+          </button>
         </div>
       </div>
 
@@ -171,29 +222,29 @@ export function Dashboard() {
             {/* Publisher */}
             <div className="bg-zinc-900/40 rounded-xl border border-zinc-800/80 p-4">
                <div className="flex gap-3">
-                  <img src={currentUser?.avatar} className="w-8 h-8 rounded-full bg-zinc-800 shrink-0" alt="" />
-                  <div className="flex-1 flex flex-col gap-2">
-                     <textarea 
-                        value={annText}
-                        onChange={e => setAnnText(e.target.value)}
-                        placeholder="Share an update with the team..."
-                        className="w-full bg-zinc-950/50 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-white resize-none focus:outline-none focus:border-indigo-500/50 h-16"
-                     />
-                     <div className="flex justify-end">
-                        <button 
-                          onClick={() => {
-                             if(annText.trim() && currentUser) {
-                                addAnnouncement(annText.trim(), currentUser.id);
-                                setAnnText('');
-                             }
-                          }}
-                          disabled={!annText.trim()}
-                          className="px-4 py-1.5 text-xs font-medium bg-indigo-500 text-white rounded-md hover:bg-indigo-600 disabled:opacity-50 transition-colors"
-                        >
-                          Announce
-                        </button>
-                     </div>
-                  </div>
+                 <img src={currentUser?.avatar} className="w-8 h-8 rounded-full bg-zinc-800 shrink-0" alt="" />
+                 <div className="flex-1 flex flex-col gap-2">
+                    <textarea 
+                       value={annText}
+                       onChange={e => setAnnText(e.target.value)}
+                       placeholder="Share an update with the team..."
+                       className="w-full bg-zinc-950/50 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-white resize-none focus:outline-none focus:border-indigo-500/50 h-16"
+                    />
+                    <div className="flex justify-end">
+                       <button 
+                         onClick={() => {
+                            if(annText.trim() && currentUser) {
+                               addAnnouncement(annText.trim(), currentUser.id);
+                               setAnnText('');
+                            }
+                         }}
+                         disabled={!annText.trim()}
+                         className="px-4 py-1.5 text-xs font-medium bg-indigo-500 text-white rounded-md hover:bg-indigo-600 disabled:opacity-50 transition-colors"
+                       >
+                         Announce
+                       </button>
+                    </div>
+                 </div>
                </div>
             </div>
 
@@ -250,6 +301,63 @@ export function Dashboard() {
             </div>
 
             <div className="space-y-5 overflow-y-auto custom-scrollbar flex-1 pr-2">
+
+              {/* Profile Switcher */}
+              <div className="pb-4 border-b border-zinc-800">
+                <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-500 mb-2">Active Profile</label>
+                <div className="relative" ref={profileDropdownRef}>
+                  <button
+                    onClick={() => setIsProfileDropdownOpen(!isProfileDropdownOpen)}
+                    className="w-full flex items-center justify-between gap-3 px-3 py-2.5 bg-zinc-900 border border-zinc-700/50 rounded-lg hover:bg-zinc-800 transition-colors"
+                  >
+                    <div className="flex items-center gap-3">
+                      <img src={currentUser.avatar} alt={currentUser.name} className="w-8 h-8 rounded-full bg-zinc-800" />
+                      <div className="text-left">
+                        <div className="text-sm font-medium text-white">{currentUser.name}</div>
+                        {currentUser.roles && currentUser.roles.length > 0 && (
+                          <div className="text-[10px] text-zinc-500 uppercase tracking-wider">{currentUser.roles.join(' · ')}</div>
+                        )}
+                      </div>
+                    </div>
+                    <ChevronDown className={`w-4 h-4 text-zinc-500 transition-transform ${isProfileDropdownOpen ? 'rotate-180' : ''}`} />
+                  </button>
+
+                  {isProfileDropdownOpen && (
+                    <div className="absolute top-full left-0 right-0 mt-1 bg-zinc-900 border border-zinc-700/50 rounded-lg shadow-xl z-10 overflow-hidden">
+                      {users.map(user => (
+                        <button
+                          key={user.id}
+                          onClick={() => handleSwitchUser(user.id)}
+                          disabled={user.id === currentUser.id}
+                          className={`w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors ${
+                            user.id === currentUser.id
+                              ? 'bg-indigo-500/10 text-indigo-400 cursor-default'
+                              : 'text-zinc-300 hover:bg-zinc-800 hover:text-white'
+                          }`}
+                        >
+                          <div className="relative shrink-0">
+                            <img src={user.avatar} alt={user.name} className="w-7 h-7 rounded-full bg-zinc-800" />
+                            <div className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-zinc-900 ${
+                              user.status === 'online' ? 'bg-emerald-500' :
+                              user.status === 'away' ? 'bg-amber-500' : 'bg-zinc-500'
+                            }`} />
+                          </div>
+                          <div className="flex-1">
+                            <div className="text-sm font-medium">{user.name}</div>
+                            {user.roles && user.roles.length > 0 && (
+                              <div className="text-[10px] text-zinc-500 uppercase tracking-wider">{user.roles.join(' · ')}</div>
+                            )}
+                          </div>
+                          {user.id === currentUser.id && (
+                            <span className="text-[9px] bg-indigo-500/20 text-indigo-400 px-1.5 py-0.5 rounded font-bold uppercase">Current</span>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
               {/* Name */}
               <div>
                 <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-500 mb-1.5">Display Name</label>

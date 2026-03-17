@@ -22,7 +22,7 @@ const NAV_ITEMS = [
 ];
 
 export function Sidebar() {
-  const { users, currentUser, setCurrentUser } = useStore();
+  const { users, currentUser } = useStore();
 
   return (
     <aside className="w-64 bg-zinc-950 border-r border-zinc-800/60 flex flex-col hidden md:flex">
@@ -57,21 +57,20 @@ export function Sidebar() {
         ))}
       </nav>
 
-      {/* User Selector (Simulation) */}
+      {/* Team List (Display Only) */}
       <div className="p-4 border-t border-zinc-800/60">
         <div className="mb-2 text-xs font-semibold text-zinc-500 uppercase tracking-wider px-2">
           TEAM
         </div>
         <div className="space-y-1">
           {users.map(user => (
-            <button
+            <div
               key={user.id}
-              onClick={() => setCurrentUser(user.id)}
               className={cn(
-                "relative group w-full flex items-center gap-3 px-2 py-2 rounded-md text-sm transition-colors text-left",
+                "relative group w-full flex items-center gap-3 px-2 py-2 rounded-md text-sm text-left",
                 currentUser?.id === user.id 
                   ? "bg-indigo-500/10 text-indigo-400 font-medium" 
-                  : "text-zinc-400 hover:bg-zinc-800/50 hover:text-zinc-200"
+                  : "text-zinc-400"
               )}
             >
               <div className="relative shrink-0">
@@ -118,7 +117,7 @@ export function Sidebar() {
                   </div>
                 </div>
               </div>
-            </button>
+            </div>
           ))}
         </div>
       </div>

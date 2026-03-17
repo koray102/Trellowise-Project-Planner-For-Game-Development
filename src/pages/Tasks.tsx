@@ -49,6 +49,14 @@ const STATUS_COLORS: Record<TaskStatusType, string> = {
   debt: 'text-rose-400'
 };
 
+/** Very subtle column background tints for visual differentiation */
+const COLUMN_TINTS: Record<TaskStatusType, string> = {
+  todo: 'bg-zinc-950/50 border-zinc-800/60',
+  progress: 'bg-blue-950/20 border-blue-900/30',
+  done: 'bg-emerald-950/20 border-emerald-900/30',
+  debt: 'bg-red-950/20 border-red-900/30',
+};
+
 // --- COMPONENTS ---
 
 function SortableTaskItem({ task }: { task: TaskItem }) {
@@ -224,7 +232,7 @@ function Column({
   const { setNodeRef } = useDroppable({ id, data: { type: 'Column' } });
 
   return (
-    <div className="flex flex-col bg-zinc-950/50 rounded-xl border border-zinc-800/60 w-80 shrink-0 h-full max-h-full">
+    <div className={cn("flex flex-col rounded-xl border flex-1 min-w-0 h-full max-h-full", COLUMN_TINTS[id])}>
       {/* Column Header */}
       <div className="p-4 flex items-center justify-between border-b border-zinc-800/60">
         <div className="flex items-center gap-2">
@@ -380,8 +388,8 @@ export function Tasks() {
       </div>
 
       {/* Kanban Board Area */}
-      <div className="flex-1 overflow-x-auto overflow-y-hidden">
-        <div className="flex gap-6 h-full min-w-max px-1">
+      <div className="flex-1 overflow-x-hidden overflow-y-hidden">
+        <div className="flex gap-4 h-full px-1">
           <DndContext 
             sensors={sensors}
             collisionDetection={closestCorners}

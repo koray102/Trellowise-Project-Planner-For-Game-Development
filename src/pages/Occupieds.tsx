@@ -278,12 +278,12 @@ function OccupiedsAllColumn() {
   }, [occupiedItems, searchTerm]);
 
   return (
-    <div className="flex flex-col bg-zinc-950/30 rounded-xl border border-zinc-800/40 w-[270px] xl:w-[300px] shrink-0 h-[38rem]">
-      <div className="p-4 flex flex-col gap-4 border-b border-zinc-800/40 bg-zinc-900/20 rounded-t-xl group">
+    <div className="flex flex-col bg-zinc-950/30 rounded-xl border border-zinc-800/40 flex-1 min-w-0 h-[38rem]">
+      <div className="p-4 flex flex-col gap-4 border-b border-zinc-800/40 bg-zinc-900/20 rounded-t-xl">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <List className="w-5 h-5 text-indigo-400 opacity-80" />
-            <h3 className="font-semibold text-zinc-400 group-hover:text-zinc-300 transition-colors">All Occupied Assets</h3>
+            <h3 className="font-semibold text-zinc-400">All Occupied Assets</h3>
           </div>
           <span className="bg-zinc-800/80 text-zinc-500 text-xs px-2 py-0.5 rounded-full font-medium">
             {sortedAndFilteredItems.length}
@@ -309,7 +309,9 @@ function OccupiedsAllColumn() {
           </div>
         ) : (
           sortedAndFilteredItems.map(item => (
-            <OccupiedItemCard key={`all_${item.id}`} item={item} />
+            <div key={`all_${item.id}`} className="opacity-60 hover:opacity-100 transition-opacity">
+              <OccupiedItemCard item={item} />
+            </div>
           ))
         )}
       </div>
@@ -333,7 +335,7 @@ function UserColumn({ user }: { user: User }) {
   }, [occupiedItems, searchTerm, user.id]);
 
   return (
-    <div className="flex flex-col bg-zinc-950/30 rounded-xl border border-zinc-800/40 w-[270px] xl:w-[300px] shrink-0 h-80">
+    <div className="flex flex-col bg-zinc-950/30 rounded-xl border border-zinc-800/40 flex-1 min-w-0 h-80">
       <div className="p-4 flex flex-col gap-4 border-b border-zinc-800/40 bg-zinc-900/20 rounded-t-xl group">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -418,7 +420,7 @@ function OccupiedsColumn({ type }: { type: ItemType }) {
   const Icon = TYPE_ICONS[type];
 
   return (
-    <div className="flex flex-col bg-zinc-950/50 rounded-xl border border-zinc-800/60 w-[270px] xl:w-[300px] shrink-0 h-[38rem]">
+    <div className="flex flex-col bg-zinc-950/50 rounded-xl border border-zinc-800/60 flex-1 min-w-0 h-[38rem]">
       <div className="p-4 flex flex-col gap-4 border-b border-zinc-800/60 bg-zinc-900/40 rounded-t-xl">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -510,8 +512,8 @@ function OccupiedsInner() {
       </div>
 
       {/* Main Scrollable Area containing rows of boards */}
-      <div className="flex-1 overflow-auto bg-zinc-950/20 rounded-xl p-2">
-        <div className="flex flex-col gap-8 min-w-max pb-4 px-1">
+      <div className="flex-1 overflow-y-auto bg-zinc-950/20 rounded-xl p-2">
+        <div className="flex flex-col gap-8 pb-4 px-1">
           
           {/* TOP ROW: Categories */}
           <div>
