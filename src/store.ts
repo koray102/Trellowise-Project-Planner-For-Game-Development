@@ -299,12 +299,12 @@ export const useStore = create<GDSState>((set, get) => ({
   },
 
   addAvailableRole: async (roleName) => {
+    // Optimistic update
+    set((state) => ({
+      availableRoles: [...new Set([...state.availableRoles, roleName])]
+    }));
     if (hasSupabase && supabase) {
-      // db logic
-    } else {
-      set((state) => ({
-        availableRoles: [...new Set([...state.availableRoles, roleName])]
-      }));
+      // No separate roles table — roles are stored per-user in users.roles
     }
   },
 

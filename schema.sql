@@ -51,26 +51,33 @@ ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.occupied_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.tasks ENABLE ROW LEVEL SECURITY;
 
--- Allow read/write access to everyone (since this is an internal dashboard without strict auth for now)
+-- Allow read/write/delete access to everyone (since this is an internal dashboard without strict auth for now)
 CREATE POLICY "Allow anonymous read" ON public.users FOR SELECT USING (true);
 CREATE POLICY "Allow anonymous insert" ON public.users FOR INSERT WITH CHECK (true);
 CREATE POLICY "Allow anonymous update" ON public.users FOR UPDATE USING (true);
+CREATE POLICY "Allow anonymous delete" ON public.users FOR DELETE USING (true);
 
 CREATE POLICY "Allow anonymous read" ON public.occupied_items FOR SELECT USING (true);
 CREATE POLICY "Allow anonymous insert" ON public.occupied_items FOR INSERT WITH CHECK (true);
 CREATE POLICY "Allow anonymous update" ON public.occupied_items FOR UPDATE USING (true);
+CREATE POLICY "Allow anonymous delete" ON public.occupied_items FOR DELETE USING (true);
 
 CREATE POLICY "Allow anonymous read" ON public.tasks FOR SELECT USING (true);
 CREATE POLICY "Allow anonymous insert" ON public.tasks FOR INSERT WITH CHECK (true);
 CREATE POLICY "Allow anonymous update" ON public.tasks FOR UPDATE USING (true);
+CREATE POLICY "Allow anonymous delete" ON public.tasks FOR DELETE USING (true);
 
 ALTER TABLE public.events ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Allow anonymous read" ON public.events FOR SELECT USING (true);
 CREATE POLICY "Allow anonymous insert" ON public.events FOR INSERT WITH CHECK (true);
+CREATE POLICY "Allow anonymous update" ON public.events FOR UPDATE USING (true);
+CREATE POLICY "Allow anonymous delete" ON public.events FOR DELETE USING (true);
 
 ALTER TABLE public.announcements ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Allow anonymous read" ON public.announcements FOR SELECT USING (true);
 CREATE POLICY "Allow anonymous insert" ON public.announcements FOR INSERT WITH CHECK (true);
+CREATE POLICY "Allow anonymous update" ON public.announcements FOR UPDATE USING (true);
+CREATE POLICY "Allow anonymous delete" ON public.announcements FOR DELETE USING (true);
 
 -- Insert Mock Data
 INSERT INTO public.users (id, name, avatar_url, status, roles, is_admin) VALUES 
