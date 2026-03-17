@@ -10,10 +10,23 @@ import { Calendar } from './pages/Calendar';
 
 function App() {
   const currentUser = useStore((s) => s.currentUser);
+  const dbReady = useStore((s) => s.dbReady);
 
   useEffect(() => {
     useStore.getState().initDb();
   }, []);
+
+  // Show loading while Supabase data is being fetched
+  if (!dbReady) {
+    return (
+      <div className="fixed inset-0 bg-zinc-950 flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-8 h-8 border-2 border-indigo-500/30 border-t-indigo-500 rounded-full animate-spin" />
+          <p className="text-zinc-500 text-sm">Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
   // Show profile selection if no user is selected
   if (!currentUser) {

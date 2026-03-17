@@ -56,6 +56,7 @@ export interface GDSState {
   events: CalendarEvent[];
   announcements: AnnouncementItem[];
   availableRoles: string[];
+  dbReady: boolean;
   
   // Actions
   initDb: () => Promise<void>;
@@ -129,20 +130,27 @@ const MOCK_ANNOUNCEMENTS: AnnouncementItem[] = [
 
 // Restore currentUser from localStorage if possible, otherwise null (forces profile select)
 const savedId = getSavedUserId();
-const restoredUser = savedId ? MOCK_USERS.find(u => u.id === savedId) ?? null : null;
+// When Supabase is active, start with empty state to avoid flash of mock data.
+// Mock data is only used as fallback when Supabase is not configured.
+const initialUsers = hasSupabase ? [] : MOCK_USERS;
+const restoredUser = hasSupabase
+  ? null // will be restored in initDb after fetching real users
+  : (savedId ? MOCK_USERS.find(u => u.id === savedId) ?? null : null);
 
 export const useStore = create<GDSState>((set, get) => ({
-  users: MOCK_USERS,
+  users: initialUsers,
   currentUser: restoredUser,
-  occupiedItems: MOCK_OCCUPIED,
-  tasks: MOCK_TASKS,
-  events: MOCK_EVENTS,
-  announcements: MOCK_ANNOUNCEMENTS,
-  availableRoles: MOCK_AVAILABLE_ROLES,
+  occupiedItems: hasSupabase ? [] : MOCK_OCCUPIED,
+  tasks: hasSupabase ? [] : MOCK_TASKS,
+  events: hasSupabase ? [] : MOCK_EVENTS,
+  announcements: hasSupabase ? [] : MOCK_ANNOUNCEMENTS,
+  availableRoles: hasSupabase ? [] : MOCK_AVAILABLE_ROLES,
+  dbReady: !hasSupabase, // true immediately if no Supabase (mock data ready), false if waiting for fetch
 
   initDb: async () => {
     if (!hasSupabase || !supabase) {
       console.warn("Supabase credentials not found. Utilizing local mock data for GDS.");
+      set({ dbReady: true });
       return;
     }
 
@@ -244,9 +252,12 @@ export const useStore = create<GDSState>((set, get) => ({
             }
           });
         }).subscribe();
+      // Mark DB as ready
+      set({ dbReady: true });
 
     } catch (err) {
       console.error("Failed to initialize Supabase realtime data:", err);
+      set({ dbReady: true }); // still mark ready so UI isn't stuck on loading
     }
   },
 
