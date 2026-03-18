@@ -168,12 +168,18 @@ export const useStore = create<GDSState>((set, get) => ({
       presenceChannel
         .on('presence', { event: 'sync' }, () => {
           const state = presenceChannel.presenceState();
-          const onlineUserIds = Object.keys(state);
+          // Extract userId from the metadata of all presence instances
+          const onlineUserIds = new Set(
+            Object.values(state)
+              .flat()
+              .map((p: any) => p.userId)
+              .filter(Boolean)
+          );
           
           set((s) => ({
             users: s.users.map(u => ({
               ...u,
-              status: onlineUserIds.includes(u.id) ? 'online' : 'offline'
+              status: onlineUserIds.has(u.id) ? 'online' : 'offline'
             }))
           }));
         })
@@ -181,7 +187,7 @@ export const useStore = create<GDSState>((set, get) => ({
           if (status === 'SUBSCRIBED') {
             const currentU = get().currentUser;
             if (currentU) {
-              await presenceChannel.track({ online_at: new Date().toISOString() });
+              await presenceChannel.track({ userId: currentU.id, online_at: new Date().toISOString() });
             }
           }
         });
@@ -325,7 +331,7 @@ export const useStore = create<GDSState>((set, get) => ({
     // Track presence if supabase is available
     if (supabase) {
       const channel = supabase.channel('online-users');
-      channel.track({ online_at: new Date().toISOString() });
+      channel.track({ userId: userId, online_at: new Date().toISOString() });
     }
   },
 
