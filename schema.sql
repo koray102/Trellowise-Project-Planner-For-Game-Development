@@ -45,6 +45,12 @@ CREATE TABLE public.announcements (
   user_id TEXT REFERENCES public.users(id),
   created_at BIGINT NOT NULL
 );
+  
+-- 6. Config Table (For site-wide settings like password)
+CREATE TABLE public.config (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
 
 -- Enable Row Level Security (RLS) - Optional for internal tools but good practice
 ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
@@ -79,6 +85,10 @@ CREATE POLICY "Allow anonymous insert" ON public.announcements FOR INSERT WITH C
 CREATE POLICY "Allow anonymous update" ON public.announcements FOR UPDATE USING (true);
 CREATE POLICY "Allow anonymous delete" ON public.announcements FOR DELETE USING (true);
 
+ALTER TABLE public.config ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow anonymous read" ON public.config FOR SELECT USING (true);
+CREATE POLICY "Allow anonymous update" ON public.config FOR UPDATE USING (true);
+
 -- Insert Mock Data
 INSERT INTO public.users (id, name, avatar_url, status, roles, is_admin) VALUES 
 ('1', 'Koray (Lead)', 'https://api.dicebear.com/7.x/avataaars/svg?seed=Koray', 'online', ARRAY['Lead'], true),
@@ -99,3 +109,6 @@ INSERT INTO public.tasks (id, title, status, assigned_to) VALUES
 ('t3', 'Create main character animations', 'progress', '2'),
 ('t4', 'Implement audio manager', 'done', '1'),
 ('t5', 'Refactor UI code (Technical Debt)', 'debt', '1');
+
+-- Default Password (GDS2026)
+INSERT INTO public.config (key, value) VALUES ('site_password', 'GDS2026');

@@ -3,6 +3,7 @@ import { useEffect } from 'react';
 import { useStore } from './store';
 import { Layout } from './components/Layout';
 import { ProfileSelect } from './components/ProfileSelect';
+import { PasswordScreen } from './components/PasswordScreen';
 import { Dashboard } from './pages/Dashboard';
 import { Occupieds } from './pages/Occupieds';
 import { Tasks } from './pages/Tasks';
@@ -11,6 +12,7 @@ import { Calendar } from './pages/Calendar';
 function App() {
   const currentUser = useStore((s) => s.currentUser);
   const dbReady = useStore((s) => s.dbReady);
+  const isAuthenticated = useStore((s) => s.isAuthenticated);
 
   useEffect(() => {
     useStore.getState().initDb();
@@ -31,6 +33,11 @@ function App() {
   // Show profile selection if no user is selected
   if (!currentUser) {
     return <ProfileSelect />;
+  }
+
+  // Show password screen if not authenticated yet
+  if (!isAuthenticated) {
+    return <PasswordScreen />;
   }
 
   return (

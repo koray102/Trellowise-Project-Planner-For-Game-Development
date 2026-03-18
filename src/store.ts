@@ -57,9 +57,12 @@ export interface GDSState {
   announcements: AnnouncementItem[];
   availableRoles: string[];
   dbReady: boolean;
+  isAuthenticated: boolean;
+  sitePassword: string | null;
   
   // Actions
   initDb: () => Promise<void>;
+  loginWithPassword: (password: string) => boolean;
   setCurrentUser: (userId: string) => void;
   logoutUser: () => void;
   updateUserStatus: (userId: string, status: UserStatus) => void;
@@ -146,6 +149,8 @@ export const useStore = create<GDSState>((set, get) => ({
   announcements: hasSupabase ? [] : MOCK_ANNOUNCEMENTS,
   availableRoles: hasSupabase ? [] : MOCK_AVAILABLE_ROLES,
   dbReady: !hasSupabase, // true immediately if no Supabase (mock data ready), false if waiting for fetch
+  isAuthenticated: false, // will be confirmed in initDb
+  sitePassword: null,
 
   initDb: async () => {
     if (!hasSupabase || !supabase) {
@@ -156,12 +161,13 @@ export const useStore = create<GDSState>((set, get) => ({
 
     try {
       // Fetch initial data
-      const [usersRes, itemsRes, tasksRes, eventsRes, annRes] = await Promise.all([
+      const [usersRes, itemsRes, tasksRes, eventsRes, annRes, configRes] = await Promise.all([
         supabase.from('users').select('*'),
         supabase.from('occupied_items').select('*'),
         supabase.from('tasks').select('*'),
         supabase.from('events').select('*'),
-        supabase.from('announcements').select('*').order('created_at', { ascending: false })
+        supabase.from('announcements').select('*').order('created_at', { ascending: false }),
+        supabase.from('config').select('*').eq('key', 'site_password').single()
       ]);
 
       if (usersRes.data) {
@@ -172,6 +178,20 @@ export const useStore = create<GDSState>((set, get) => ({
         const newCurrentUser = prevCurrentUserId ? (updatedUsers.find(u => u.id === prevCurrentUserId) ?? null) : null;
         set({ users: updatedUsers, currentUser: newCurrentUser });
       }
+
+      // Handle config/password
+      let currentSitePassword = import.meta.env.VITE_APP_PASSWORD || null;
+      if (configRes.data) {
+        currentSitePassword = configRes.data.value;
+      }
+      
+      const storedPass = localStorage.getItem('gds-auth-pass');
+      const isAuth = !currentSitePassword || storedPass === currentSitePassword;
+      
+      set({ 
+        sitePassword: currentSitePassword, 
+        isAuthenticated: isAuth 
+      });
       if (itemsRes.data) {
         set({ occupiedItems: itemsRes.data.map(i => ({ 
           id: i.id, name: i.name, type: i.type as ItemType, occupiedBy: i.locked_by, 
@@ -261,6 +281,16 @@ export const useStore = create<GDSState>((set, get) => ({
     }
   },
 
+  loginWithPassword: (password) => {
+    const correctPassword = get().sitePassword;
+    if (!correctPassword || password === correctPassword) {
+      try { localStorage.setItem('gds-auth-pass', password); } catch { /* noop */ }
+      set({ isAuthenticated: true });
+      return true;
+    }
+    return false;
+  },
+
   setCurrentUser: (userId) => {
     saveUserId(userId);
     set((state) => ({
@@ -269,8 +299,11 @@ export const useStore = create<GDSState>((set, get) => ({
   },
 
   logoutUser: () => {
-    try { localStorage.removeItem(LS_USER_KEY); } catch { /* noop */ }
-    set({ currentUser: null });
+    try { 
+      localStorage.removeItem(LS_USER_KEY); 
+      localStorage.removeItem('gds-auth-pass');
+    } catch { /* noop */ }
+    set({ currentUser: null, isAuthenticated: false });
   },
 
   updateUserStatus: (userId, status) =>
