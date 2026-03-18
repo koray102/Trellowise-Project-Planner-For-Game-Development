@@ -160,6 +160,32 @@ export const useStore = create<GDSState>((set, get) => ({
     }
 
     try {
+      // Create presence channel
+      const presenceChannel = supabase.channel('online-users', {
+        config: { presence: { key: '' } } // individual keys will be set per user
+      });
+
+      presenceChannel
+        .on('presence', { event: 'sync' }, () => {
+          const state = presenceChannel.presenceState();
+          const onlineUserIds = Object.keys(state);
+          
+          set((s) => ({
+            users: s.users.map(u => ({
+              ...u,
+              status: onlineUserIds.includes(u.id) ? 'online' : 'offline'
+            }))
+          }));
+        })
+        .subscribe(async (status) => {
+          if (status === 'SUBSCRIBED') {
+            const currentU = get().currentUser;
+            if (currentU) {
+              await presenceChannel.track({ online_at: new Date().toISOString() });
+            }
+          }
+        });
+
       // Fetch initial data
       const [usersRes, itemsRes, tasksRes, eventsRes, annRes, configRes] = await Promise.all([
         supabase.from('users').select('*'),
@@ -293,9 +319,14 @@ export const useStore = create<GDSState>((set, get) => ({
 
   setCurrentUser: (userId) => {
     saveUserId(userId);
-    set((state) => ({
-      currentUser: state.users.find(u => u.id === userId) || state.currentUser
-    }));
+    const user = get().users.find(u => u.id === userId);
+    set({ currentUser: user || null });
+
+    // Track presence if supabase is available
+    if (supabase) {
+      const channel = supabase.channel('online-users');
+      channel.track({ online_at: new Date().toISOString() });
+    }
   },
 
   logoutUser: () => {
@@ -303,6 +334,12 @@ export const useStore = create<GDSState>((set, get) => ({
       localStorage.removeItem(LS_USER_KEY); 
       localStorage.removeItem('gds-auth-pass');
     } catch { /* noop */ }
+    
+    // Untrack presence
+    if (supabase) {
+      supabase.channel('online-users').untrack();
+    }
+
     set({ currentUser: null, isAuthenticated: false });
   },
 
