@@ -75,6 +75,7 @@ export interface GDSState {
   addTask: (title: string, description: string, assignedTo: string, status: TaskStatusType) => Promise<void>;
   removeTask: (taskId: string) => Promise<void>;
   renameTask: (taskId: string, newTitle: string) => Promise<void>;
+  updateTaskDescription: (taskId: string, newDescription: string) => Promise<void>;
   reassignTask: (taskId: string, newAssignee: string) => Promise<void>;
   moveTask: (taskId: string, newStatus: TaskStatusType) => Promise<void>;
   addEvent: (title: string, description: string, date: Date, type: EventType) => Promise<void>;
@@ -466,6 +467,15 @@ export const useStore = create<GDSState>((set, get) => ({
     }));
     if (hasSupabase && supabase) {
       await supabase.from('tasks').update({ title: newTitle }).eq('id', taskId);
+    }
+  },
+
+  updateTaskDescription: async (taskId, newDescription) => {
+    set((state) => ({
+      tasks: state.tasks.map(t => t.id === taskId ? { ...t, description: newDescription } : t)
+    }));
+    if (hasSupabase && supabase) {
+      await supabase.from('tasks').update({ description: newDescription }).eq('id', taskId);
     }
   },
 

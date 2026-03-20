@@ -60,10 +60,12 @@ const COLUMN_TINTS: Record<TaskStatusType, string> = {
 // --- COMPONENTS ---
 
 function SortableTaskItem({ task }: { task: TaskItem }) {
-  const { users, removeTask, renameTask, reassignTask } = useStore();
+  const { users, removeTask, renameTask, reassignTask, updateTaskDescription } = useStore();
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [isEditingAssignee, setIsEditingAssignee] = useState(false);
+  const [isEditingDescription, setIsEditingDescription] = useState(false);
   const [editTitle, setEditTitle] = useState(task.title);
+  const [editDescription, setEditDescription] = useState(task.description || '');
   const [showMenu, setShowMenu] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -101,6 +103,14 @@ function SortableTaskItem({ task }: { task: TaskItem }) {
     setIsEditingTitle(false);
   };
 
+  const handleDescSubmit = () => {
+    const finalDesc = editDescription.trim();
+    if (finalDesc !== (task.description || '')) {
+      updateTaskDescription(task.id, finalDesc);
+    }
+    setIsEditingDescription(false);
+  };
+
   return (
     <div
       ref={setNodeRef}
@@ -108,10 +118,10 @@ function SortableTaskItem({ task }: { task: TaskItem }) {
       className={cn(
         "group p-3 rounded-lg border bg-zinc-900 border-zinc-800 shadow-sm flex flex-col gap-3",
         isDragging ? "opacity-30 border-indigo-500" : "hover:border-zinc-700 hover:shadow-md transition-all",
-        !isEditingTitle && !isEditingAssignee ? "cursor-grab active:cursor-grabbing" : ""
+        !isEditingTitle && !isEditingAssignee && !isEditingDescription ? "cursor-grab active:cursor-grabbing" : ""
       )}
-      {...(!isEditingTitle && !isEditingAssignee ? attributes : {})}
-      {...(!isEditingTitle && !isEditingAssignee ? listeners : {})}
+      {...(!isEditingTitle && !isEditingAssignee && !isEditingDescription ? attributes : {})}
+      {...(!isEditingTitle && !isEditingAssignee && !isEditingDescription ? listeners : {})}
     >
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-start gap-2 flex-1">
@@ -161,6 +171,17 @@ function SortableTaskItem({ task }: { task: TaskItem }) {
                  >
                    Change Assignee
                  </button>
+                 <button 
+                   onClick={(e) => { 
+                     e.stopPropagation(); 
+                     setEditDescription(task.description || ''); 
+                     setIsEditingDescription(true); 
+                     setShowMenu(false); 
+                   }}
+                   className="w-full text-left px-3 py-1.5 text-xs text-zinc-300 hover:bg-indigo-500/20 hover:text-indigo-400 transition-colors"
+                 >
+                   Edit Description
+                 </button>
                </div>
              )}
           </div>
@@ -175,9 +196,36 @@ function SortableTaskItem({ task }: { task: TaskItem }) {
         </div>
       </div>
       
-      {task.description && (
-        <p className="text-xs text-zinc-400 pl-6 line-clamp-2">{task.description}</p>
-      )}
+      {isEditingDescription ? (
+         <div className="px-6 py-1">
+           <textarea
+             autoFocus
+             value={editDescription}
+             onChange={(e) => setEditDescription(e.target.value)}
+             onKeyDown={(e) => {
+               if (e.key === 'Enter' && !e.shiftKey) {
+                 e.preventDefault();
+                 handleDescSubmit();
+               }
+               if (e.key === 'Escape') {
+                 setEditDescription(task.description || '');
+                 setIsEditingDescription(false);
+               }
+             }}
+             onBlur={handleDescSubmit}
+             className="w-full bg-zinc-950 border border-indigo-500 rounded px-2 py-1 text-xs text-zinc-300 outline-none resize-none min-h-[60px]"
+             placeholder="Task description..."
+           />
+         </div>
+      ) : task.description ? (
+        <p 
+          className="text-xs text-zinc-400 pl-6 line-clamp-2 cursor-pointer hover:text-zinc-300 transition-colors"
+          onClick={(e) => { e.stopPropagation(); setEditDescription(task.description || ''); setIsEditingDescription(true); }}
+          title="Click to edit description"
+        >
+          {task.description}
+        </p>
+      ) : null}
       
       <div className="flex items-center justify-between pl-6 pt-1">
         <StatusIcon className={cn("w-4 h-4", STATUS_COLORS[task.status])} />
