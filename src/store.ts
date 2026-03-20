@@ -161,6 +161,10 @@ export const useStore = create<GDSState>((set, get) => ({
     }
 
     try {
+      // Local variable to store real-time presence explicitly to avoid DB overwrite
+      let currentOnlineIds = new Set<string>();
+      let isPresenceSubscribed = false;
+
       // Create presence channel
       const presenceChannel = supabase.channel('online-users', {
         config: { presence: { key: '' } } // individual keys will be set per user
@@ -170,7 +174,7 @@ export const useStore = create<GDSState>((set, get) => ({
         .on('presence', { event: 'sync' }, () => {
           const state = presenceChannel.presenceState();
           // Extract userId from the metadata of all presence instances
-          const onlineUserIds = new Set(
+          currentOnlineIds = new Set(
             Object.values(state)
               .flat()
               .map((p: any) => p.userId)
@@ -180,12 +184,13 @@ export const useStore = create<GDSState>((set, get) => ({
           set((s) => ({
             users: s.users.map(u => ({
               ...u,
-              status: onlineUserIds.has(u.id) ? 'online' : 'offline'
+              status: currentOnlineIds.has(u.id) ? 'online' : 'offline'
             }))
           }));
         })
         .subscribe(async (status) => {
           if (status === 'SUBSCRIBED') {
+            isPresenceSubscribed = true;
             const currentU = get().currentUser;
             if (currentU) {
               await presenceChannel.track({ userId: currentU.id, online_at: new Date().toISOString() });
@@ -204,12 +209,25 @@ export const useStore = create<GDSState>((set, get) => ({
       ]);
 
       if (usersRes.data) {
-        const updatedUsers = usersRes.data.map(u => ({ ...u, avatar: u.avatar_url, isAdmin: u.is_admin, roles: u.roles || [] }));
+        const updatedUsers = usersRes.data.map(u => ({ 
+          ...u, 
+          avatar: u.avatar_url, 
+          isAdmin: u.is_admin, 
+          roles: u.roles || [],
+          status: currentOnlineIds.has(u.id) ? 'online' : 'offline' 
+        }));
+        
         // Restore from localStorage; if not found, keep null to force profile select
         const savedUserId = getSavedUserId();
         const prevCurrentUserId = savedUserId || get().currentUser?.id;
         const newCurrentUser = prevCurrentUserId ? (updatedUsers.find(u => u.id === prevCurrentUserId) ?? null) : null;
+        
         set({ users: updatedUsers, currentUser: newCurrentUser });
+
+        // If user was restored after channel was subscribed, track them now to avoid ghost offline status
+        if (newCurrentUser && isPresenceSubscribed) {
+           presenceChannel.track({ userId: newCurrentUser.id, online_at: new Date().toISOString() });
+        }
       }
 
       // Handle config/password
