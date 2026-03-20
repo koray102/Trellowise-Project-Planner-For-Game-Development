@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useStore } from '../store';
 import { Link } from 'react-router-dom';
-import { Users, ShieldAlert, KanbanSquare, Activity, CheckCircle2, Settings, X, Plus, LogOut, ChevronDown, Bell } from 'lucide-react';
+import { Users, ShieldAlert, KanbanSquare, Activity, CheckCircle2, Settings, X, Plus, LogOut, ChevronDown } from 'lucide-react';
 
 export function Dashboard() {
   const { users, currentUser, tasks, occupiedItems, updateUserProfile, availableRoles, addAvailableRole, announcements, addAnnouncement, setCurrentUser, logoutUser } = useStore();
@@ -15,34 +15,6 @@ export function Dashboard() {
   const [switchToast, setSwitchToast] = useState<{ from: string; to: string } | null>(null);
   const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
   const profileDropdownRef = useRef<HTMLDivElement>(null);
-
-  // Announcement Notification State
-  const [unreadAnnouncements, setUnreadAnnouncements] = useState<any[]>([]);
-  const sessionStartTime = useRef(Date.now());
-  const seenIds = useRef<Set<string>>(new Set());
-
-  // Initialize seenIds with current announcements so we don't notify on existing ones
-  useEffect(() => {
-    announcements.forEach(a => seenIds.current.add(a.id));
-  }, []);
-
-  // Watch for new announcements
-  useEffect(() => {
-    const newItems = announcements.filter(a => 
-      !seenIds.current.has(a.id) && 
-      a.userId !== currentUser?.id &&
-      a.createdAt > sessionStartTime.current
-    );
-
-    if (newItems.length > 0) {
-      setUnreadAnnouncements(prev => {
-        const combined = [...prev, ...newItems];
-        // Unique filter
-        return Array.from(new Map(combined.map(item => [item.id, item])).values());
-      });
-      newItems.forEach(a => seenIds.current.add(a.id));
-    }
-  }, [announcements, currentUser?.id]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -112,48 +84,12 @@ export function Dashboard() {
 
       {/* User Switch Toast */}
       {switchToast && (
-        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[100] pointer-events-none">
+        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[200] pointer-events-none">
           <div className="bg-zinc-900/95 backdrop-blur-sm border border-indigo-500/30 text-zinc-200 px-5 py-2.5 rounded-full shadow-2xl text-sm flex items-center gap-2">
             <Users className="w-4 h-4 text-indigo-400 shrink-0" />
             <span>
               Switched from <b className="text-white">{switchToast.from}</b> to <b className="text-indigo-400">{switchToast.to}</b>
             </span>
-          </div>
-        </div>
-      )}
-
-      {/* Announcement Notification Center */}
-      {unreadAnnouncements.length > 0 && (
-        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[110] w-full max-w-sm px-4">
-          <div className="bg-zinc-900/95 backdrop-blur-md border border-indigo-500/40 rounded-2xl shadow-[0_0_50px_-12px_rgba(99,102,241,0.3)] overflow-hidden flex flex-col max-h-[300px]">
-            <div className="px-4 py-3 bg-indigo-500/10 border-b border-indigo-500/20 flex items-center justify-between shrink-0">
-               <div className="flex items-center gap-2 text-indigo-400 font-bold text-xs uppercase tracking-widest">
-                  <Bell className="w-3.5 h-3.5 fill-indigo-500/20" />
-                  New Updates ({unreadAnnouncements.length})
-               </div>
-               <button 
-                 onClick={() => setUnreadAnnouncements([])}
-                 className="p-1 hover:bg-zinc-800 rounded-md text-zinc-500 hover:text-white transition-colors"
-               >
-                 <X className="w-4 h-4" />
-               </button>
-            </div>
-            <div className="overflow-y-auto custom-scrollbar p-4 space-y-4">
-               {[...unreadAnnouncements].reverse().map((ann) => {
-                 const author = users.find(u => u.id === ann.userId);
-                 return (
-                   <div key={ann.id} className="group relative pl-3 border-l-2 border-indigo-500/50">
-                      <p className="text-sm text-zinc-200 leading-relaxed">{ann.text}</p>
-                      <div className="mt-1.5 flex items-center gap-2 text-[10px] text-zinc-500 font-medium">
-                        {author && <img src={author.avatar} className="w-4 h-4 rounded-full bg-zinc-800" alt="" />}
-                        <span className="text-zinc-400">{author?.name}</span>
-                        <span>•</span>
-                        <span>Just now</span>
-                      </div>
-                   </div>
-                 );
-               })}
-            </div>
           </div>
         </div>
       )}
