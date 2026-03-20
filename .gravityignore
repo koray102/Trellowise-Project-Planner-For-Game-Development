@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.vscode/
+public/
+src/assets/
+package-lock.json
+.npmrc
+.gitignore
+*.md
+vercel.json
+eslint.config.js
+tsconfig*.json

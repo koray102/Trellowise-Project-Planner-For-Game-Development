@@ -112,3 +112,20 @@ INSERT INTO public.tasks (id, title, status, assigned_to) VALUES
 
 -- Default Password (GDS2026)
 INSERT INTO public.config (key, value) VALUES ('site_password', 'GDS2026');
+
+-- 7. Auto-delete old announcements trigger (older than 10 days)
+CREATE OR REPLACE FUNCTION delete_old_announcements()
+RETURNS trigger AS $$
+BEGIN
+  -- Delete rows where created_at is older than 10 days
+  -- created_at is stored in milliseconds
+  DELETE FROM public.announcements
+  WHERE created_at < (EXTRACT(EPOCH FROM NOW() - INTERVAL '10 days') * 1000);
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER cleanup_announcements
+AFTER INSERT ON public.announcements
+FOR EACH STATEMENT
+EXECUTE FUNCTION delete_old_announcements();
