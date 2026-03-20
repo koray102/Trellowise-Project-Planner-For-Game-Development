@@ -266,10 +266,33 @@ function Column({
 
 // --- MAIN PAGE ---
 
+// Module-level persistent state so it survives unmount/remount until a hard refresh
+let persistentTaskFilter: string | null | 'default' = 'default';
+
 export function Tasks() {
   const { tasks, moveTask, addTask, users, currentUser } = useStore();
   const [activeId, setActiveId] = useState<string | null>(null);
-  const [filteredUserId, setFilteredUserId] = useState<string | null>(null);
+  
+  // Use persistent filter or fallback to current user
+  const [filteredUserId, setFilteredUserId] = useState<string | null>(() => {
+    if (persistentTaskFilter !== 'default') return persistentTaskFilter;
+    return currentUser?.id || null;
+  });
+
+  // Sync back to persistent storage whenever user changes the filter tab
+  useEffect(() => {
+    if (filteredUserId !== null || persistentTaskFilter !== 'default') {
+      persistentTaskFilter = filteredUserId;
+    }
+  }, [filteredUserId]);
+
+  // Fallback: if user loaded slightly after component mount
+  useEffect(() => {
+    if (persistentTaskFilter === 'default' && currentUser) {
+      setFilteredUserId(currentUser.id);
+      persistentTaskFilter = currentUser.id;
+    }
+  }, [currentUser]);
 
   // New task modal state
   const [isAddingTask, setIsAddingTask] = useState<TaskStatusType | null>(null);

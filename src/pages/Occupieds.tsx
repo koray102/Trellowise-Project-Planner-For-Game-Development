@@ -274,7 +274,7 @@ function OccupiedsAllColumn() {
       normalizeString(item.name).includes(normalizedSearch)
     );
 
-    return [...result].sort((a, b) => b.lastUpdated - a.lastUpdated);
+    return [...result].sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
   }, [occupiedItems, searchTerm]);
 
   return (
@@ -331,7 +331,7 @@ function UserColumn({ user }: { user: User }) {
       normalizeString(item.name).includes(normalizedSearch)
     );
 
-    return [...result].sort((a, b) => b.lastUpdated - a.lastUpdated);
+    return [...result].sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
   }, [occupiedItems, searchTerm, user.id]);
 
   return (
@@ -391,10 +391,14 @@ function OccupiedsColumn({ type }: { type: ItemType }) {
     );
 
     return [...result].sort((a, b) => {
-      if ((a.occupiedBy && b.occupiedBy) || (!a.occupiedBy && !b.occupiedBy)) {
-        return b.lastUpdated - a.lastUpdated;
+      const aLocked = !!a.occupiedBy;
+      const bLocked = !!b.occupiedBy;
+      
+      if (aLocked !== bLocked) {
+        return aLocked ? -1 : 1;
       }
-      return a.occupiedBy ? -1 : 1;
+      
+      return a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
     });
   }, [columnItems, searchTerm]);
 
