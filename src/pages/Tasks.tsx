@@ -16,7 +16,8 @@ import {
   SortableContext, 
   sortableKeyboardCoordinates, 
   verticalListSortingStrategy,
-  useSortable
+  useSortable,
+  arrayMove
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { Plus, GripVertical, AlertCircle, CheckCircle2, Circle, Clock, MoreHorizontal, Trash2 } from 'lucide-react';
@@ -318,7 +319,7 @@ function Column({
 let persistentTaskFilter: string | null | 'default' = 'default';
 
 export function Tasks() {
-  const { tasks, moveTask, addTask, users, currentUser } = useStore();
+  const { tasks, moveTask, reorderTasks, addTask, users, currentUser } = useStore();
   const [activeId, setActiveId] = useState<string | null>(null);
   
   // Use persistent filter or fallback to current user
@@ -360,10 +361,10 @@ export function Tasks() {
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 
-  // Filter tasks based on selected user tab (or all)
+  // Filter tasks based on selected user tab (or all), then sort by sort_order
   const filteredTasks = useMemo(() => {
-    if (!filteredUserId) return tasks;
-    return tasks.filter(t => t.assignedTo === filteredUserId);
+    const base = !filteredUserId ? tasks : tasks.filter(t => t.assignedTo === filteredUserId);
+    return [...base].sort((a, b) => a.sort_order - b.sort_order);
   }, [tasks, filteredUserId]);
 
   // Derived state for dragging overlay
@@ -385,10 +386,12 @@ export function Tasks() {
     const activeTaskId = active.id as string;
     const overId = over.id as string;
 
+    if (activeTaskId === overId) return;
+
     const activeTaskData = tasks.find(t => t.id === activeTaskId);
     if (!activeTaskData) return;
 
-    // Determine target status layout
+    // Determine target status
     const overTaskData = tasks.find(t => t.id === overId);
     let newStatus: TaskStatusType;
     if (overTaskData) {
@@ -402,8 +405,19 @@ export function Tasks() {
       }
     }
 
-    if (newStatus !== activeTaskData.status) {
-       moveTask(activeTaskId, newStatus);
+    if (newStatus === activeTaskData.status) {
+      // Same column reorder
+      const columnTasks = filteredTasks.filter(t => t.status === newStatus);
+      const oldIndex = columnTasks.findIndex(t => t.id === activeTaskId);
+      const newIndex = columnTasks.findIndex(t => t.id === overId);
+
+      if (oldIndex !== -1 && newIndex !== -1 && oldIndex !== newIndex) {
+        const reordered = arrayMove(columnTasks, oldIndex, newIndex);
+        reorderTasks(reordered.map(t => t.id), newStatus);
+      }
+    } else {
+      // Cross-column move
+      moveTask(activeTaskId, newStatus);
     }
   };
 

@@ -29,6 +29,7 @@ export interface TaskItem {
   description?: string;
   assignedTo: string; // User ID
   status: TaskStatusType;
+  sort_order: number;
 }
 
 export type EventType = 'milestone' | 'meeting' | 'deadline';
@@ -78,6 +79,7 @@ export interface GDSState {
   updateTaskDescription: (taskId: string, newDescription: string) => Promise<void>;
   reassignTask: (taskId: string, newAssignee: string) => Promise<void>;
   moveTask: (taskId: string, newStatus: TaskStatusType) => Promise<void>;
+  reorderTasks: (reorderedIds: string[], status: TaskStatusType) => Promise<void>;
   addEvent: (title: string, description: string, date: Date, type: EventType) => Promise<void>;
   addAnnouncement: (text: string, userId: string) => Promise<void>;
 }
@@ -111,11 +113,11 @@ const MOCK_OCCUPIED: OccupiedItem[] = [
 ];
 
 const MOCK_TASKS: TaskItem[] = [
-  { id: 't1', title: 'Fix jumping physics bug', description: 'Player occasionally double jumps when hitting a slope.', assignedTo: '3', status: 'progress' },
-  { id: 't2', title: 'Design Level 2 layout', description: 'Focus on verticality and adding new enemy types.', assignedTo: '4', status: 'todo' },
-  { id: 't3', title: 'Create main character animations', description: 'Attack, Dash, and Idle loops.', assignedTo: '2', status: 'progress' },
-  { id: 't4', title: 'Implement audio manager', description: 'Add support for spatial 3D audio in Unity.', assignedTo: '1', status: 'done' },
-  { id: 't5', title: 'Refactor UI code (Technical Debt)', description: 'Move from old canvas system to UI Toolkit.', assignedTo: '1', status: 'debt' },
+  { id: 't1', title: 'Fix jumping physics bug', description: 'Player occasionally double jumps when hitting a slope.', assignedTo: '3', status: 'progress', sort_order: 0 },
+  { id: 't2', title: 'Design Level 2 layout', description: 'Focus on verticality and adding new enemy types.', assignedTo: '4', status: 'todo', sort_order: 0 },
+  { id: 't3', title: 'Create main character animations', description: 'Attack, Dash, and Idle loops.', assignedTo: '2', status: 'progress', sort_order: 1 },
+  { id: 't4', title: 'Implement audio manager', description: 'Add support for spatial 3D audio in Unity.', assignedTo: '1', status: 'done', sort_order: 0 },
+  { id: 't5', title: 'Refactor UI code (Technical Debt)', description: 'Move from old canvas system to UI Toolkit.', assignedTo: '1', status: 'debt', sort_order: 0 },
 ];
 
 const MOCK_EVENTS: CalendarEvent[] = [
@@ -251,7 +253,8 @@ export const useStore = create<GDSState>((set, get) => ({
       }
       if (tasksRes.data) {
         set({ tasks: tasksRes.data.map(t => ({ 
-          id: t.id, title: t.title, description: t.description, assignedTo: t.assigned_to, status: t.status as TaskStatusType 
+          id: t.id, title: t.title, description: t.description, assignedTo: t.assigned_to, status: t.status as TaskStatusType,
+          sort_order: t.sort_order ?? 0
         })) });
       }
       if (eventsRes.data) {
@@ -284,7 +287,8 @@ export const useStore = create<GDSState>((set, get) => ({
           supabase!.from('tasks').select('*').then(res => {
             if (res.data) {
               set({ tasks: res.data.map(t => ({ 
-                id: t.id, title: t.title, description: t.description, assignedTo: t.assigned_to, status: t.status as TaskStatusType 
+                id: t.id, title: t.title, description: t.description, assignedTo: t.assigned_to, status: t.status as TaskStatusType,
+                sort_order: t.sort_order ?? 0
               })) });
             }
           });
@@ -464,11 +468,13 @@ export const useStore = create<GDSState>((set, get) => ({
 
   addTask: async (title, description, assignedTo, status) => {
     const id = `task_${Date.now()}`;
+    // New tasks get sort_order = -Date.now() so they appear at the top when sorted ascending
+    const sort_order = -Date.now();
     set((state) => ({
-      tasks: [...state.tasks, { id, title, description, assignedTo, status }]
+      tasks: [...state.tasks, { id, title, description, assignedTo, status, sort_order }]
     }));
     if (hasSupabase && supabase) {
-      await supabase.from('tasks').insert({ id, title, description, assigned_to: assignedTo, status });
+      await supabase.from('tasks').insert({ id, title, description, assigned_to: assignedTo, status, sort_order });
     }
   },
 
@@ -507,11 +513,37 @@ export const useStore = create<GDSState>((set, get) => ({
   },
 
   moveTask: async (taskId, newStatus) => {
+    // When moving to a new column, assign sort_order to put it at the top
+    const sort_order = -Date.now();
     set((state) => ({
-      tasks: state.tasks.map(t => t.id === taskId ? { ...t, status: newStatus } : t)
+      tasks: state.tasks.map(t => t.id === taskId ? { ...t, status: newStatus, sort_order } : t)
     }));
     if (hasSupabase && supabase) {
-      await supabase.from('tasks').update({ status: newStatus }).eq('id', taskId);
+      await supabase.from('tasks').update({ status: newStatus, sort_order }).eq('id', taskId);
+    }
+  },
+
+  reorderTasks: async (reorderedIds, _status) => {
+    // Assign incremental sort_order to each task based on new position
+    const updates: { id: string; sort_order: number }[] = reorderedIds.map((id, index) => ({
+      id, sort_order: index
+    }));
+
+    // Optimistic update
+    set((state) => ({
+      tasks: state.tasks.map(t => {
+        const update = updates.find(u => u.id === t.id);
+        return update ? { ...t, sort_order: update.sort_order } : t;
+      })
+    }));
+
+    // Persist to Supabase
+    if (hasSupabase && supabase) {
+      await Promise.all(
+        updates.map(u => 
+          supabase!.from('tasks').update({ sort_order: u.sort_order }).eq('id', u.id)
+        )
+      );
     }
   },
 

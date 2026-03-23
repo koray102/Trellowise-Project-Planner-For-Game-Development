@@ -26,8 +26,12 @@ CREATE TABLE public.tasks (
   description TEXT,
   status TEXT NOT NULL, -- 'todo', 'progress', 'done', 'debt'
   assigned_to TEXT REFERENCES public.users(id),
+  sort_order INTEGER DEFAULT 0, -- For persistent Kanban column ordering
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+
+-- Migration for existing databases:
+-- ALTER TABLE public.tasks ADD COLUMN sort_order INTEGER DEFAULT 0;
 
 -- 4. Events Table (Calendar)
 CREATE TABLE public.events (
