@@ -474,7 +474,10 @@ export const useStore = create<GDSState>((set, get) => ({
       tasks: [...state.tasks, { id, title, description, assignedTo, status, sort_order }]
     }));
     if (hasSupabase && supabase) {
-      await supabase.from('tasks').insert({ id, title, description, assigned_to: assignedTo, status, sort_order });
+      // Insert core fields first (always works)
+      await supabase.from('tasks').insert({ id, title, description, assigned_to: assignedTo, status });
+      // Then try to set sort_order separately (won't break if column doesn't exist yet)
+      supabase.from('tasks').update({ sort_order }).eq('id', id).then(() => {});
     }
   },
 
@@ -519,7 +522,10 @@ export const useStore = create<GDSState>((set, get) => ({
       tasks: state.tasks.map(t => t.id === taskId ? { ...t, status: newStatus, sort_order } : t)
     }));
     if (hasSupabase && supabase) {
-      await supabase.from('tasks').update({ status: newStatus, sort_order }).eq('id', taskId);
+      // Always update status first (critical)
+      await supabase.from('tasks').update({ status: newStatus }).eq('id', taskId);
+      // Then try sort_order separately (won't break if column doesn't exist yet)
+      supabase.from('tasks').update({ sort_order }).eq('id', taskId).then(() => {});
     }
   },
 
