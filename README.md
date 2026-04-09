@@ -36,13 +36,20 @@ Follow these steps to install, run, and self-host Trellowise from scratch.
 
 ### 1. Prerequisites
 - Node.js (v18+)
-- A free [Supabase](https://supabase.com/) account.
+- A free [Supabase](https://supabase.com/) account (if you intend to use the default Supabase integration).
 
-### 2. Setup Supabase Database
+### 2. Setup Database (Supabase Example)
+Trellowise is architected to be backend-agnostic so you can connect any database or realtime provider you prefer. A database is required for **persistent data storage** (so your tasks and states remain saved across sessions and devices) as well as for **real-time synchronization** between team members. 
+
+It comes pre-configured with a **[Supabase](https://supabase.com/)** integration out-of-the-box as an example, as it provides excellent real-time syncing and persistence for free.
+
+**If you choose to use Supabase (Recommended Default Setup):**
 1. Create a new project on Supabase.
 2. Go to the **SQL Editor** in your Supabase dashboard.
-3. Open the `schema.sql` file provided in this repository, copy its contents, and execute it to create all tables (`users`, `occupied_items`, `tasks`, `events`, `announcements`, `config`).
+3. Open the `schema.sql` file provided in this repository, copy its contents, and execute it to create all necessary tables (`users`, `occupied_items`, `tasks`, `events`, `announcements`, `config`).
 4. Enable **Realtime** for all the tables you just created (Go to Database -> Replication -> Enable for all tables).
+
+*(Note: If you are using a different backend, simply adapt the data fetching and realtime subscription logic located in `src/store.ts` to match your provider).*
 
 ### 3. Clone and Install
 ```bash
