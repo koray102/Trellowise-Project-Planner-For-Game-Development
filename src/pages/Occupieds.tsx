@@ -1,13 +1,10 @@
-import { useState, useMemo, useEffect, useRef, Component, type ReactNode } from 'react';
-import { useStore, type ItemType, type OccupiedItem, type User } from '../store';
+import { useState, useMemo, useEffect, useRef, useCallback, Component, type ReactNode } from 'react';
+import { useStore } from '../store';
+import type { ItemType, OccupiedItem, User } from '../shared/types';
 import { Search, Plus, ShieldAlert, Lock, Unlock, Clock, FileJson, FileCode2, Box, Trash2, List, MoreHorizontal, User as UserIcon } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
-import { clsx } from 'clsx';
-import { twMerge } from 'tailwind-merge';
-
-function cn(...inputs: (string | undefined | null | false)[]) {
-  return twMerge(clsx(inputs));
-}
+import { cn } from '../shared/lib/cn';
+import { useClickOutside } from '../shared/hooks/useClickOutside';
 
 /** Safe wrapper for formatDistanceToNow to prevent crashes on invalid dates */
 function safeFormatDistance(timestamp: number): string {
@@ -102,15 +99,8 @@ function OccupiedItemCard({ item }: { item: OccupiedItem }) {
   const iconColorClass = typeColor.split(' ')[0] || 'text-zinc-400';
 
   // Close menu when clicking outside
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-        setShowMenu(false);
-      }
-    }
-    if (showMenu) document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [showMenu]);
+  const closeMenu = useCallback(() => setShowMenu(false), []);
+  useClickOutside(menuRef, closeMenu, showMenu);
 
   const handleRenameSubmit = () => {
     if (editName.trim().length > 0 && editName !== item.name) {

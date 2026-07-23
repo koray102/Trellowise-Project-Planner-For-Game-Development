@@ -1,17 +1,7 @@
 import { useStore } from '../store';
-import { clsx } from 'clsx';
-import { twMerge } from 'tailwind-merge';
+import { cn } from '../shared/lib/cn';
+import { USER_STATUS_COLORS } from '../shared/constants/statusColors';
 import { Gamepad2 } from 'lucide-react';
-
-function cn(...inputs: (string | undefined | null | false)[]) {
-  return twMerge(clsx(inputs));
-}
-
-const STATUS_COLORS: Record<string, string> = {
-  online: 'bg-emerald-500',
-  away: 'bg-amber-500',
-  offline: 'bg-zinc-500',
-};
 
 export function ProfileSelect() {
   const { users, setCurrentUser } = useStore();
@@ -61,7 +51,7 @@ export function ProfileSelect() {
                 />
                 <div className={cn(
                   "absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full border-[3px] border-zinc-900",
-                  STATUS_COLORS[user.status] || 'bg-zinc-500'
+                  USER_STATUS_COLORS[user.status] || 'bg-zinc-500'
                 )} />
               </div>
 

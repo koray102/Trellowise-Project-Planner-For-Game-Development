@@ -1,7 +1,8 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { useStore } from '../store';
 import { Link } from 'react-router-dom';
 import { Users, ShieldAlert, KanbanSquare, Activity, CheckCircle2, Settings, X, Plus, LogOut, ChevronDown } from 'lucide-react';
+import { useClickOutside } from '../shared/hooks/useClickOutside';
 
 export function Dashboard() {
   const { users, currentUser, tasks, occupiedItems, updateUserProfile, availableRoles, addAvailableRole, announcements, addAnnouncement, setCurrentUser, logoutUser } = useStore();
@@ -17,15 +18,8 @@ export function Dashboard() {
   const profileDropdownRef = useRef<HTMLDivElement>(null);
 
   // Close dropdown when clicking outside
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (profileDropdownRef.current && !profileDropdownRef.current.contains(event.target as Node)) {
-        setIsProfileDropdownOpen(false);
-      }
-    }
-    if (isProfileDropdownOpen) document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [isProfileDropdownOpen]);
+  const closeProfileDropdown = useCallback(() => setIsProfileDropdownOpen(false), []);
+  useClickOutside(profileDropdownRef, closeProfileDropdown, isProfileDropdownOpen);
 
   const openSettings = () => {
     if (!currentUser) return;

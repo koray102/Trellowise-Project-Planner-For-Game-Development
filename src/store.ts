@@ -1,53 +1,37 @@
 import { create } from 'zustand';
 import { supabase, hasSupabase } from './lib/supabase';
+import { logger } from './shared/lib/logger';
 
-// Types
-export type UserStatus = 'online' | 'offline' | 'away';
-export type ItemType = 'scene' | 'script' | 'prefab';
-export type TaskStatusType = 'todo' | 'progress' | 'done' | 'debt';
+// Domain types — canonical definitions live in shared/types/
+// Re-exported here for backward compatibility during refactoring
+export type { UserStatus, User } from './shared/types/user.types';
+export type { TaskStatusType, TaskItem } from './shared/types/task.types';
+export type { ItemType, OccupiedItem } from './shared/types/occupied.types';
+export type { EventType, CalendarEvent } from './shared/types/calendar.types';
+export type { AnnouncementItem } from './shared/types/announcement.types';
 
-export interface User {
-  id: string;
-  name: string;
-  avatar: string;
-  status: UserStatus;
-  roles: string[];
-  isAdmin: boolean;
-}
+// Import types needed within this file
+import type { UserStatus, User } from './shared/types/user.types';
+import type { TaskStatusType, TaskItem } from './shared/types/task.types';
+import type { ItemType, OccupiedItem } from './shared/types/occupied.types';
+import type { EventType, CalendarEvent } from './shared/types/calendar.types';
+import type { AnnouncementItem } from './shared/types/announcement.types';
 
-export interface OccupiedItem {
-  id: string;
-  name: string;
-  type: ItemType;
-  occupiedBy: string | null; // User ID or null if free
-  lastUpdated: number;
-}
+// Repositories — all Supabase DB calls are delegated to these
+import { fetchAllUsers, updateUser, fetchSitePassword } from './services/user.repository';
+import { fetchAllTasks, insertTask, deleteTask, updateTaskField, moveTaskStatus, reorderTasksSortOrder } from './services/task.repository';
+import { fetchAllOccupiedItems, insertOccupiedItem, deleteOccupiedItem, renameOccupiedItem as renameOccupiedItemRepo, updateOccupiedLock } from './services/occupied.repository';
+import { fetchAllEvents, insertEvent } from './services/calendar.repository';
+import { fetchAllAnnouncements, insertAnnouncement } from './services/announcement.repository';
 
-export interface TaskItem {
-  id: string;
-  title: string;
-  description?: string;
-  assignedTo: string; // User ID
-  status: TaskStatusType;
-  sort_order: number;
-}
+// Mappers — used by realtime subscription handlers to transform incoming DB rows
+import { toUser } from './services/mappers/user.mapper';
+import { toTask } from './services/mappers/task.mapper';
+import { toOccupiedItem } from './services/mappers/occupied.mapper';
+import { toCalendarEvent } from './services/mappers/calendar.mapper';
+import { toAnnouncement } from './services/mappers/announcement.mapper';
 
-export type EventType = 'milestone' | 'meeting' | 'deadline';
-
-export interface CalendarEvent {
-  id: string;
-  title: string;
-  description?: string;
-  date: number; // Unix timestamp
-  type: EventType;
-}
-
-export interface AnnouncementItem {
-  id: string;
-  text: string;
-  userId: string;
-  createdAt: number;
-}
+const MODULE = 'Store';
 
 export interface GDSState {
   users: User[];
@@ -157,7 +141,7 @@ export const useStore = create<GDSState>((set, get) => ({
 
   initDb: async () => {
     if (!hasSupabase || !supabase) {
-      console.warn("Supabase credentials not found. Utilizing local mock data for GDS.");
+      logger.warn(MODULE, 'Supabase credentials not found. Utilizing local mock data for GDS.');
       set({ dbReady: true });
       return;
     }
@@ -200,23 +184,22 @@ export const useStore = create<GDSState>((set, get) => ({
           }
         });
 
-      // Fetch initial data
-      const [usersRes, itemsRes, tasksRes, eventsRes, annRes, configRes] = await Promise.all([
-        supabase.from('users').select('*'),
-        supabase.from('occupied_items').select('*'),
-        supabase.from('tasks').select('*'),
-        supabase.from('events').select('*'),
-        supabase.from('announcements').select('*').order('created_at', { ascending: false }),
-        supabase.from('config').select('*').eq('key', 'site_password').single()
+      // Fetch initial data via repositories
+      logger.info(MODULE, 'Fetching initial data from Supabase...');
+      const [users, occupiedItems, tasks, events, announcements, sitePasswordValue] = await Promise.all([
+        fetchAllUsers(),
+        fetchAllOccupiedItems(),
+        fetchAllTasks(),
+        fetchAllEvents(),
+        fetchAllAnnouncements(),
+        fetchSitePassword(),
       ]);
 
-      if (usersRes.data) {
-        const updatedUsers = usersRes.data.map(u => ({ 
-          ...u, 
-          avatar: u.avatar_url, 
-          isAdmin: u.is_admin, 
-          roles: u.roles || [],
-          status: currentOnlineIds.has(u.id) ? 'online' : 'offline' 
+      // Apply presence status to fetched users
+      if (users.length > 0) {
+        const updatedUsers = users.map(u => ({
+          ...u,
+          status: currentOnlineIds.has(u.id) ? 'online' as UserStatus : 'offline' as UserStatus,
         }));
         
         // Restore from localStorage; if not found, keep null to force profile select
@@ -234,8 +217,8 @@ export const useStore = create<GDSState>((set, get) => ({
 
       // Handle config/password
       let currentSitePassword = import.meta.env.VITE_APP_PASSWORD || null;
-      if (configRes.data) {
-        currentSitePassword = configRes.data.value;
+      if (sitePasswordValue) {
+        currentSitePassword = sitePasswordValue;
       }
       
       const storedPass = localStorage.getItem('gds-auth-pass');
@@ -243,41 +226,20 @@ export const useStore = create<GDSState>((set, get) => ({
       
       set({ 
         sitePassword: currentSitePassword, 
-        isAuthenticated: isAuth 
+        isAuthenticated: isAuth,
+        occupiedItems,
+        tasks,
+        events,
+        announcements,
       });
-      if (itemsRes.data) {
-        set({ occupiedItems: itemsRes.data.map(i => ({ 
-          id: i.id, name: i.name, type: i.type as ItemType, occupiedBy: i.locked_by, 
-          lastUpdated: new Date(i.last_updated).getTime() 
-        })) });
-      }
-      if (tasksRes.data) {
-        set({ tasks: tasksRes.data.map(t => ({ 
-          id: t.id, title: t.title, description: t.description, assignedTo: t.assigned_to, status: t.status as TaskStatusType,
-          sort_order: t.sort_order ?? 0
-        })) });
-      }
-      if (eventsRes.data) {
-        set({ events: eventsRes.data.map(e => ({
-          id: e.id, title: e.title, description: e.description, date: Number(e.date), type: e.type as EventType
-        })) });
-      }
-      if (annRes.data) {
-        set({ announcements: annRes.data.map(a => ({
-          id: a.id, text: a.text, userId: a.user_id, createdAt: new Date(a.created_at).getTime()
-        })) });
-      }
 
-      // Set up Realtime Subscriptions
+      // Set up Realtime Subscriptions — use mappers for consistent transformation
       supabase.channel('public:occupied_items')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'occupied_items' }, () => {
           // Simplistic reload on any change
           supabase!.from('occupied_items').select('*').then(res => {
             if (res.data) {
-              set({ occupiedItems: res.data.map(i => ({ 
-                id: i.id, name: i.name, type: i.type, occupiedBy: i.locked_by, 
-                lastUpdated: new Date(i.last_updated).getTime() 
-              })) });
+              set({ occupiedItems: res.data.map(toOccupiedItem) });
             }
           });
         }).subscribe();
@@ -286,10 +248,7 @@ export const useStore = create<GDSState>((set, get) => ({
         .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, () => {
           supabase!.from('tasks').select('*').then(res => {
             if (res.data) {
-              set({ tasks: res.data.map(t => ({ 
-                id: t.id, title: t.title, description: t.description, assignedTo: t.assigned_to, status: t.status as TaskStatusType,
-                sort_order: t.sort_order ?? 0
-              })) });
+              set({ tasks: res.data.map(toTask) });
             }
           });
         }).subscribe();
@@ -298,9 +257,7 @@ export const useStore = create<GDSState>((set, get) => ({
         .on('postgres_changes', { event: '*', schema: 'public', table: 'events' }, () => {
           supabase!.from('events').select('*').then(res => {
             if (res.data) {
-              set({ events: res.data.map(e => ({
-                id: e.id, title: e.title, description: e.description, date: Number(e.date), type: e.type as EventType
-              })) });
+              set({ events: res.data.map(toCalendarEvent) });
             }
           });
         }).subscribe();
@@ -309,9 +266,7 @@ export const useStore = create<GDSState>((set, get) => ({
         .on('postgres_changes', { event: '*', schema: 'public', table: 'announcements' }, () => {
           supabase!.from('announcements').select('*').order('created_at', { ascending: false }).then(res => {
             if (res.data) {
-              set({ announcements: res.data.map(a => ({
-                id: a.id, text: a.text, userId: a.user_id, createdAt: Number(a.created_at)
-              })) });
+              set({ announcements: res.data.map(toAnnouncement) });
             }
           });
         }).subscribe();
@@ -320,18 +275,20 @@ export const useStore = create<GDSState>((set, get) => ({
         .on('postgres_changes', { event: '*', schema: 'public', table: 'users' }, () => {
           supabase!.from('users').select('*').then(res => {
             if (res.data) {
-              const updatedUsers = res.data.map(u => ({ ...u, avatar: u.avatar_url, isAdmin: u.is_admin, roles: u.roles || [] }));
+              const updatedUsers = res.data.map(toUser);
               const prevId = get().currentUser?.id;
               const newCurrentUser = updatedUsers.find(u => u.id === prevId) ?? updatedUsers[0] ?? null;
               set({ users: updatedUsers, currentUser: newCurrentUser });
             }
           });
         }).subscribe();
+
       // Mark DB as ready
       set({ dbReady: true });
+      logger.info(MODULE, 'Database initialized successfully');
 
     } catch (err) {
-      console.error("Failed to initialize Supabase realtime data:", err);
+      logger.error(MODULE, 'Failed to initialize Supabase realtime data', err);
       set({ dbReady: true }); // still mark ready so UI isn't stuck on loading
     }
   },
@@ -341,8 +298,10 @@ export const useStore = create<GDSState>((set, get) => ({
     if (!correctPassword || password === correctPassword) {
       try { localStorage.setItem('gds-auth-pass', password); } catch { /* noop */ }
       set({ isAuthenticated: true });
+      logger.info(MODULE, 'User authenticated successfully');
       return true;
     }
+    logger.warn(MODULE, 'Authentication failed — incorrect password');
     return false;
   },
 
@@ -350,6 +309,7 @@ export const useStore = create<GDSState>((set, get) => ({
     saveUserId(userId);
     const user = get().users.find(u => u.id === userId);
     set({ currentUser: user || null });
+    logger.info(MODULE, `Switched to user: ${user?.name || userId}`);
 
     // Track presence if supabase is available
     if (supabase) {
@@ -370,6 +330,7 @@ export const useStore = create<GDSState>((set, get) => ({
     }
 
     set({ currentUser: null, isAuthenticated: false });
+    logger.info(MODULE, 'User logged out');
   },
 
   updateUserStatus: (userId, status) =>
@@ -388,13 +349,8 @@ export const useStore = create<GDSState>((set, get) => ({
       };
     });
     
-    if (hasSupabase && supabase) {
-      await supabase.from('users').update({
-        name: updates.name,
-        avatar_url: updates.avatar,
-        roles: updates.roles
-      }).eq('id', userId);
-    }
+    // Persist via repository
+    await updateUser(userId, updates);
   },
 
   addAvailableRole: async (roleName) => {
@@ -402,9 +358,7 @@ export const useStore = create<GDSState>((set, get) => ({
     set((state) => ({
       availableRoles: [...new Set([...state.availableRoles, roleName])]
     }));
-    if (hasSupabase && supabase) {
-      // No separate roles table — roles are stored per-user in users.roles
-    }
+    // No separate roles table — roles are stored per-user in users.roles
   },
 
   addOccupiedItem: async (name, type) => {
@@ -412,17 +366,15 @@ export const useStore = create<GDSState>((set, get) => ({
     const newItem: OccupiedItem = { id: newItemId, name, type, occupiedBy: null, lastUpdated: Date.now() };
     // Optimistic update — show immediately for the current user
     set((state) => ({ occupiedItems: [...state.occupiedItems, newItem] }));
-    if (hasSupabase && supabase) {
-      await supabase.from('occupied_items').insert({ id: newItemId, name, type });
-    }
+    // Persist via repository
+    await insertOccupiedItem(newItemId, name, type);
   },
 
   removeOccupiedItem: async (itemId) => {
     // Optimistic update
     set((state) => ({ occupiedItems: state.occupiedItems.filter(i => i.id !== itemId) }));
-    if (hasSupabase && supabase) {
-      await supabase.from('occupied_items').delete().eq('id', itemId);
-    }
+    // Persist via repository
+    await deleteOccupiedItem(itemId);
   },
 
   renameOccupiedItem: async (itemId, newName) => {
@@ -432,9 +384,8 @@ export const useStore = create<GDSState>((set, get) => ({
         i.id === itemId ? { ...i, name: newName } : i
       )
     }));
-    if (hasSupabase && supabase) {
-      await supabase.from('occupied_items').update({ name: newName }).eq('id', itemId);
-    }
+    // Persist via repository
+    await renameOccupiedItemRepo(itemId, newName);
   },
 
   toggleOccupiedLock: async (itemId, userId) => {
@@ -449,6 +400,7 @@ export const useStore = create<GDSState>((set, get) => ({
     } else if (item.occupiedBy === null) {
       newOccupiedBy = userId; // Lock
     } else {
+      logger.warn(MODULE, `Cannot toggle lock on item ${itemId}: locked by another user`);
       return; // Locked by someone else
     }
 
@@ -459,11 +411,8 @@ export const useStore = create<GDSState>((set, get) => ({
       )
     }));
 
-    if (hasSupabase && supabase) {
-      await supabase.from('occupied_items').update({ 
-        locked_by: newOccupiedBy, last_updated: new Date().toISOString() 
-      }).eq('id', itemId);
-    }
+    // Persist via repository
+    await updateOccupiedLock(itemId, newOccupiedBy);
   },
 
   addTask: async (title, description, assignedTo, status) => {
@@ -473,46 +422,38 @@ export const useStore = create<GDSState>((set, get) => ({
     set((state) => ({
       tasks: [...state.tasks, { id, title, description, assignedTo, status, sort_order }]
     }));
-    if (hasSupabase && supabase) {
-      // Insert core fields first (always works)
-      await supabase.from('tasks').insert({ id, title, description, assigned_to: assignedTo, status });
-      // Then try to set sort_order separately (won't break if column doesn't exist yet)
-      supabase.from('tasks').update({ sort_order }).eq('id', id).then(() => {});
-    }
+    // Persist via repository
+    await insertTask({ id, title, description, assignedTo, status, sort_order });
   },
 
   removeTask: async (taskId) => {
     set((state) => ({ tasks: state.tasks.filter(t => t.id !== taskId) }));
-    if (hasSupabase && supabase) {
-      await supabase.from('tasks').delete().eq('id', taskId);
-    }
+    // Persist via repository
+    await deleteTask(taskId);
   },
 
   renameTask: async (taskId, newTitle) => {
     set((state) => ({
       tasks: state.tasks.map(t => t.id === taskId ? { ...t, title: newTitle } : t)
     }));
-    if (hasSupabase && supabase) {
-      await supabase.from('tasks').update({ title: newTitle }).eq('id', taskId);
-    }
+    // Persist via repository
+    await updateTaskField(taskId, 'title', newTitle);
   },
 
   updateTaskDescription: async (taskId, newDescription) => {
     set((state) => ({
       tasks: state.tasks.map(t => t.id === taskId ? { ...t, description: newDescription } : t)
     }));
-    if (hasSupabase && supabase) {
-      await supabase.from('tasks').update({ description: newDescription }).eq('id', taskId);
-    }
+    // Persist via repository
+    await updateTaskField(taskId, 'description', newDescription);
   },
 
   reassignTask: async (taskId, newAssignee) => {
     set((state) => ({
       tasks: state.tasks.map(t => t.id === taskId ? { ...t, assignedTo: newAssignee } : t)
     }));
-    if (hasSupabase && supabase) {
-      await supabase.from('tasks').update({ assigned_to: newAssignee }).eq('id', taskId);
-    }
+    // Persist via repository
+    await updateTaskField(taskId, 'assigned_to', newAssignee);
   },
 
   moveTask: async (taskId, newStatus) => {
@@ -521,12 +462,8 @@ export const useStore = create<GDSState>((set, get) => ({
     set((state) => ({
       tasks: state.tasks.map(t => t.id === taskId ? { ...t, status: newStatus, sort_order } : t)
     }));
-    if (hasSupabase && supabase) {
-      // Always update status first (critical)
-      await supabase.from('tasks').update({ status: newStatus }).eq('id', taskId);
-      // Then try sort_order separately (won't break if column doesn't exist yet)
-      supabase.from('tasks').update({ sort_order }).eq('id', taskId).then(() => {});
-    }
+    // Persist via repository
+    await moveTaskStatus(taskId, newStatus, sort_order);
   },
 
   reorderTasks: async (reorderedIds, _status) => {
@@ -543,14 +480,8 @@ export const useStore = create<GDSState>((set, get) => ({
       })
     }));
 
-    // Persist to Supabase
-    if (hasSupabase && supabase) {
-      await Promise.all(
-        updates.map(u => 
-          supabase!.from('tasks').update({ sort_order: u.sort_order }).eq('id', u.id)
-        )
-      );
-    }
+    // Persist via repository
+    await reorderTasksSortOrder(updates);
   },
 
   addEvent: async (title, description, date, type) => {
@@ -565,11 +496,10 @@ export const useStore = create<GDSState>((set, get) => ({
 
     set((state) => ({ events: [...state.events, newEvent] }));
 
-    if (hasSupabase && supabase) {
-        await supabase.from('events').insert({
-          id, title, description, date: date.getTime(), type
-        });
-    }
+    // Persist via repository
+    await insertEvent({
+      id, title, description, date: date.getTime(), type
+    });
   },
 
   addAnnouncement: async (text, userId) => {
@@ -582,10 +512,7 @@ export const useStore = create<GDSState>((set, get) => ({
     
     set((state) => ({ announcements: [newAnnounce, ...state.announcements] }));
 
-    if (hasSupabase && supabase) {
-      await supabase.from('announcements').insert({
-        id: newAnnounce.id, text, user_id: userId, created_at: newAnnounce.createdAt
-      });
-    }
+    // Persist via repository
+    await insertAnnouncement(newAnnounce);
   }
 }));

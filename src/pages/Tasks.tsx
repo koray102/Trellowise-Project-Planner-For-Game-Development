@@ -1,5 +1,6 @@
-import { useState, useMemo, useEffect, useRef } from 'react';
-import { useStore, type TaskStatusType, type TaskItem } from '../store';
+import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
+import { useStore } from '../store';
+import type { TaskStatusType, TaskItem } from '../shared/types';
 import { 
   DndContext, 
   DragOverlay, 
@@ -21,12 +22,8 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { Plus, GripVertical, AlertCircle, CheckCircle2, Circle, Clock, MoreHorizontal, Trash2 } from 'lucide-react';
-import { clsx } from 'clsx';
-import { twMerge } from 'tailwind-merge';
-
-function cn(...inputs: (string | undefined | null | false)[]) {
-  return twMerge(clsx(inputs));
-}
+import { cn } from '../shared/lib/cn';
+import { useClickOutside } from '../shared/hooks/useClickOutside';
 
 // --- COLUMN DEFINITIONS ---
 const COLUMNS: { id: TaskStatusType; title: string }[] = [
@@ -70,15 +67,8 @@ function SortableTaskItem({ task }: { task: TaskItem }) {
   const [showMenu, setShowMenu] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-        setShowMenu(false);
-      }
-    }
-    if (showMenu) document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [showMenu]);
+  const closeMenu = useCallback(() => setShowMenu(false), []);
+  useClickOutside(menuRef, closeMenu, showMenu);
 
   const {
     attributes,

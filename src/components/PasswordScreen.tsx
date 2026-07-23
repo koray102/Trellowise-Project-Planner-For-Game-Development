@@ -1,18 +1,8 @@
 import { useState } from 'react';
 import { useStore } from '../store';
-import { clsx } from 'clsx';
-import { twMerge } from 'tailwind-merge';
+import { cn } from '../shared/lib/cn';
+import { USER_STATUS_COLORS } from '../shared/constants/statusColors';
 import { Eye, EyeOff, Lock, ArrowLeft } from 'lucide-react';
-
-function cn(...inputs: (string | undefined | null | false)[]) {
-  return twMerge(clsx(inputs));
-}
-
-const STATUS_COLORS: Record<string, string> = {
-  online: 'bg-emerald-500',
-  away: 'bg-amber-500',
-  offline: 'bg-zinc-500',
-};
 
 export function PasswordScreen() {
   const { currentUser, loginWithPassword, logoutUser } = useStore();
@@ -62,7 +52,7 @@ export function PasswordScreen() {
             />
             <div className={cn(
               "absolute bottom-0 right-1 w-6 h-6 rounded-full border-4 border-zinc-950",
-              STATUS_COLORS[currentUser.status] || 'bg-zinc-500'
+              USER_STATUS_COLORS[currentUser.status] || 'bg-zinc-500'
             )} />
           </div>
           <div className="text-center">

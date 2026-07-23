@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
-import { useStore, type CalendarEvent, type EventType } from '../store';
+import { useStore } from '../store';
+import type { CalendarEvent, EventType } from '../shared/types';
 import { 
   format, 
   addMonths, 
@@ -15,12 +16,7 @@ import {
   startOfDay
 } from 'date-fns';
 import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Plus, X, ListTodo, MapPin, Flag } from 'lucide-react';
-import { clsx } from 'clsx';
-import { twMerge } from 'tailwind-merge';
-
-function cn(...inputs: (string | undefined | null | false)[]) {
-  return twMerge(clsx(inputs));
-}
+import { cn } from '../shared/lib/cn';
 
 const TYPE_COLORS: Record<EventType, string> = {
   meeting: 'bg-blue-500/10 text-blue-400 border-blue-500/20 hover:bg-blue-500/20',
