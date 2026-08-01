@@ -9,6 +9,7 @@ import type { OccupiedItem, ItemType } from '../../shared/types';
 /** Raw row shape returned by Supabase `occupied_items` table */
 export interface DbOccupiedRow {
   id: string;
+  project_id: string;
   name: string;
   type: string;
   locked_by: string | null;
@@ -21,6 +22,7 @@ export interface DbOccupiedRow {
 export function toOccupiedItem(row: DbOccupiedRow): OccupiedItem {
   return {
     id: row.id,
+    projectId: row.project_id,
     name: row.name,
     type: row.type as ItemType,
     occupiedBy: row.locked_by,

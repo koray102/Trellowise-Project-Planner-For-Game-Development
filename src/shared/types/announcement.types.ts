@@ -8,6 +8,7 @@
 /** Represents a team announcement posted by a user */
 export interface AnnouncementItem {
   id: string;
+  projectId: string;
   /** The announcement message text */
   text: string;
   /** User ID of the person who posted this announcement */

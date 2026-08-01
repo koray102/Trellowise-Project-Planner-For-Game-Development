@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { cn } from '../shared/lib/cn';
 import { UserAvatar } from '../shared/components';
+import { ProjectSelector } from './ProjectSelector';
 
 const NAV_ITEMS = [
   { name: 'Dashboard', path: '/', icon: LayoutDashboard },
@@ -32,6 +33,9 @@ export function Sidebar() {
           <span className="font-semibold text-zinc-100 tracking-wide text-lg">Sync</span>
         </div>
       </div>
+
+      {/* Project Selector */}
+      <ProjectSelector />
 
       {/* Navigation */}
       <nav className="flex-1 px-3 py-6 space-y-1">

@@ -9,6 +9,7 @@ import type { TaskItem, TaskStatusType } from '../../shared/types';
 /** Raw row shape returned by Supabase `tasks` table */
 export interface DbTaskRow {
   id: string;
+  project_id: string;
   title: string;
   description: string | null;
   status: string;
@@ -22,6 +23,7 @@ export interface DbTaskRow {
 export function toTask(row: DbTaskRow): TaskItem {
   return {
     id: row.id,
+    projectId: row.project_id,
     title: row.title,
     description: row.description ?? undefined,
     assignedTo: row.assigned_to,
@@ -35,14 +37,16 @@ export function toTask(row: DbTaskRow): TaskItem {
  */
 export function toDbTaskInsert(task: {
   id: string;
+  projectId: string;
   title: string;
   description: string;
   assignedTo: string;
   status: TaskStatusType;
   sort_order?: number;
-}): Partial<DbTaskRow> {
+}): Partial<DbTaskRow & { project_id: string }> {
   return {
     id: task.id,
+    project_id: task.projectId,
     title: task.title,
     description: task.description || null,
     assigned_to: task.assignedTo,

@@ -1,5 +1,12 @@
 -- GameDev Sync (GDS) Supabase Schema
 
+-- 0. Projects Table (Multi-Project Support)
+CREATE TABLE public.projects (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  created_at BIGINT NOT NULL
+);
+
 -- 1. Users Table (Simulated or Real)
 CREATE TABLE public.users (
   id TEXT PRIMARY KEY,
@@ -13,6 +20,7 @@ CREATE TABLE public.users (
 -- 2. Occupied Items Table (For locking Scenes/Prefabs/Scripts)
 CREATE TABLE public.occupied_items (
   id TEXT PRIMARY KEY,
+  project_id TEXT NOT NULL REFERENCES public.projects(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
   type TEXT NOT NULL, -- 'Scene', 'Script', 'Prefab'
   locked_by TEXT REFERENCES public.users(id),
@@ -22,6 +30,7 @@ CREATE TABLE public.occupied_items (
 -- 3. Tasks Table (Kanban Board)
 CREATE TABLE public.tasks (
   id TEXT PRIMARY KEY,
+  project_id TEXT NOT NULL REFERENCES public.projects(id) ON DELETE CASCADE,
   title TEXT NOT NULL,
   description TEXT,
   status TEXT NOT NULL, -- 'todo', 'progress', 'done', 'debt'
@@ -30,12 +39,10 @@ CREATE TABLE public.tasks (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Migration for existing databases:
--- ALTER TABLE public.tasks ADD COLUMN sort_order INTEGER DEFAULT 0;
-
 -- 4. Events Table (Calendar)
 CREATE TABLE public.events (
   id TEXT PRIMARY KEY,
+  project_id TEXT NOT NULL REFERENCES public.projects(id) ON DELETE CASCADE,
   title TEXT NOT NULL,
   description TEXT,
   date BIGINT NOT NULL,
@@ -45,6 +52,7 @@ CREATE TABLE public.events (
 -- 5. Announcements Table
 CREATE TABLE public.announcements (
   id TEXT PRIMARY KEY,
+  project_id TEXT NOT NULL REFERENCES public.projects(id) ON DELETE CASCADE,
   text TEXT NOT NULL,
   user_id TEXT REFERENCES public.users(id),
   created_at BIGINT NOT NULL
@@ -57,11 +65,20 @@ CREATE TABLE public.config (
 );
 
 -- Enable Row Level Security (RLS) - Optional for internal tools but good practice
+ALTER TABLE public.projects ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.occupied_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.tasks ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.events ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.announcements ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.config ENABLE ROW LEVEL SECURITY;
 
 -- Allow read/write/delete access to everyone (since this is an internal dashboard without strict auth for now)
+CREATE POLICY "Allow anonymous read" ON public.projects FOR SELECT USING (true);
+CREATE POLICY "Allow anonymous insert" ON public.projects FOR INSERT WITH CHECK (true);
+CREATE POLICY "Allow anonymous update" ON public.projects FOR UPDATE USING (true);
+CREATE POLICY "Allow anonymous delete" ON public.projects FOR DELETE USING (true);
+
 CREATE POLICY "Allow anonymous read" ON public.users FOR SELECT USING (true);
 CREATE POLICY "Allow anonymous insert" ON public.users FOR INSERT WITH CHECK (true);
 CREATE POLICY "Allow anonymous update" ON public.users FOR UPDATE USING (true);
@@ -77,42 +94,42 @@ CREATE POLICY "Allow anonymous insert" ON public.tasks FOR INSERT WITH CHECK (tr
 CREATE POLICY "Allow anonymous update" ON public.tasks FOR UPDATE USING (true);
 CREATE POLICY "Allow anonymous delete" ON public.tasks FOR DELETE USING (true);
 
-ALTER TABLE public.events ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Allow anonymous read" ON public.events FOR SELECT USING (true);
 CREATE POLICY "Allow anonymous insert" ON public.events FOR INSERT WITH CHECK (true);
 CREATE POLICY "Allow anonymous update" ON public.events FOR UPDATE USING (true);
 CREATE POLICY "Allow anonymous delete" ON public.events FOR DELETE USING (true);
 
-ALTER TABLE public.announcements ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Allow anonymous read" ON public.announcements FOR SELECT USING (true);
 CREATE POLICY "Allow anonymous insert" ON public.announcements FOR INSERT WITH CHECK (true);
 CREATE POLICY "Allow anonymous update" ON public.announcements FOR UPDATE USING (true);
 CREATE POLICY "Allow anonymous delete" ON public.announcements FOR DELETE USING (true);
 
-ALTER TABLE public.config ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Allow anonymous read" ON public.config FOR SELECT USING (true);
 CREATE POLICY "Allow anonymous update" ON public.config FOR UPDATE USING (true);
 
 -- Insert Mock Data
+INSERT INTO public.projects (id, name, created_at) VALUES
+('proj_1', 'Main Project', EXTRACT(EPOCH FROM NOW()) * 1000);
+
 INSERT INTO public.users (id, name, avatar_url, status, roles, is_admin) VALUES 
 ('1', 'Koray (Lead)', 'https://api.dicebear.com/7.x/avataaars/svg?seed=Koray', 'online', ARRAY['Lead'], true),
 ('2', 'Sam (Art)', 'https://api.dicebear.com/7.x/avataaars/svg?seed=Sam', 'online', ARRAY['Art'], false),
 ('3', 'Jordan (Code)', 'https://api.dicebear.com/7.x/avataaars/svg?seed=Jordan', 'away', ARRAY['Code'], false),
 ('4', 'Alex (Design)', 'https://api.dicebear.com/7.x/avataaars/svg?seed=Alex', 'offline', ARRAY['Design'], false);
 
-INSERT INTO public.occupied_items (id, name, type, locked_by) VALUES
-('1', 'MainMenu.unity', 'Scene', '1'),
-('2', 'PlayerController.cs', 'Script', '3'),
-('3', 'Level1.unity', 'Scene', NULL),
-('4', 'EnemyAI.prefab', 'Prefab', NULL),
-('5', 'GameManager.cs', 'Script', NULL);
+INSERT INTO public.occupied_items (id, project_id, name, type, locked_by) VALUES
+('1', 'proj_1', 'MainMenu.unity', 'Scene', '1'),
+('2', 'proj_1', 'PlayerController.cs', 'Script', '3'),
+('3', 'proj_1', 'Level1.unity', 'Scene', NULL),
+('4', 'proj_1', 'EnemyAI.prefab', 'Prefab', NULL),
+('5', 'proj_1', 'GameManager.cs', 'Script', NULL);
 
-INSERT INTO public.tasks (id, title, status, assigned_to) VALUES
-('t1', 'Fix jumping physics bug', 'progress', '3'),
-('t2', 'Design Level 2 layout', 'todo', '4'),
-('t3', 'Create main character animations', 'progress', '2'),
-('t4', 'Implement audio manager', 'done', '1'),
-('t5', 'Refactor UI code (Technical Debt)', 'debt', '1');
+INSERT INTO public.tasks (id, project_id, title, status, assigned_to) VALUES
+('t1', 'proj_1', 'Fix jumping physics bug', 'progress', '3'),
+('t2', 'proj_1', 'Design Level 2 layout', 'todo', '4'),
+('t3', 'proj_1', 'Create main character animations', 'progress', '2'),
+('t4', 'proj_1', 'Implement audio manager', 'done', '1'),
+('t5', 'proj_1', 'Refactor UI code (Technical Debt)', 'debt', '1');
 
 -- Default Password (GDS2026)
 INSERT INTO public.config (key, value) VALUES ('site_password', 'GDS2026');
@@ -133,3 +150,15 @@ CREATE TRIGGER cleanup_announcements
 AFTER INSERT ON public.announcements
 FOR EACH STATEMENT
 EXECUTE FUNCTION delete_old_announcements();
+
+-- ==========================================================
+-- MIGRATION COMMANDS FOR EXISTING DEPLOYMENTS:
+-- Run these individually if you already have data in Supabase:
+-- 
+-- 1. CREATE TABLE public.projects (id TEXT PRIMARY KEY, name TEXT NOT NULL, created_at BIGINT NOT NULL);
+-- 2. INSERT INTO public.projects (id, name, created_at) VALUES ('proj_1', 'Main Project', EXTRACT(EPOCH FROM NOW()) * 1000);
+-- 3. ALTER TABLE public.tasks ADD COLUMN project_id TEXT REFERENCES public.projects(id) ON DELETE CASCADE;
+-- 4. UPDATE public.tasks SET project_id = 'proj_1';
+-- 5. ALTER TABLE public.tasks ALTER COLUMN project_id SET NOT NULL;
+-- (Repeat steps 3-5 for occupied_items, events, and announcements)
+-- ==========================================================

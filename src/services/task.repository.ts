@@ -13,11 +13,11 @@ import type { TaskItem, TaskStatusType } from '../shared/types';
 
 const MODULE = 'TaskRepo';
 
-/** Fetch all tasks from the database */
-export async function fetchAllTasks(): Promise<TaskItem[]> {
+/** Fetch all tasks from the database for a specific project */
+export async function fetchAllTasks(projectId: string): Promise<TaskItem[]> {
   if (!hasSupabase || !supabase) return [];
 
-  const { data, error } = await supabase.from('tasks').select('*');
+  const { data, error } = await supabase.from('tasks').select('*').eq('project_id', projectId);
 
   if (error) {
     logger.error(MODULE, 'Failed to fetch tasks', error);
@@ -34,6 +34,7 @@ export async function fetchAllTasks(): Promise<TaskItem[]> {
  */
 export async function insertTask(task: {
   id: string;
+  projectId: string;
   title: string;
   description: string;
   assignedTo: string;

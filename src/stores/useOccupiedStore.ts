@@ -13,16 +13,17 @@ import {
 } from '../services/occupied.repository';
 import type { OccupiedItem, ItemType } from '../shared/types';
 import { hasSupabase } from '../lib/supabase';
+import { useProjectStore } from './useProjectStore';
 
 const MODULE = 'OccupiedStore';
 
 // Mock data for offline/demo mode
 const MOCK_OCCUPIED: OccupiedItem[] = [
-  { id: '1', name: 'MainMenu', type: 'scene', occupiedBy: '1', lastUpdated: Date.now() - 1000 * 60 * 30 },
-  { id: '2', name: 'PlayerMovement', type: 'script', occupiedBy: '3', lastUpdated: Date.now() - 1000 * 60 * 5 },
-  { id: '3', name: 'Level_01', type: 'scene', occupiedBy: null, lastUpdated: Date.now() - 1000 * 60 * 120 },
-  { id: '4', name: 'Enemy_Bruiser', type: 'prefab', occupiedBy: null, lastUpdated: Date.now() - 1000 * 60 * 60 * 24 },
-  { id: '5', name: 'GameManager.cs', type: 'script', occupiedBy: null, lastUpdated: Date.now() - 1000 * 60 * 60 },
+  { id: '1', projectId: 'proj_1', name: 'MainMenu', type: 'scene', occupiedBy: '1', lastUpdated: Date.now() - 1000 * 60 * 30 },
+  { id: '2', projectId: 'proj_1', name: 'PlayerMovement', type: 'script', occupiedBy: '3', lastUpdated: Date.now() - 1000 * 60 * 5 },
+  { id: '3', projectId: 'proj_1', name: 'Level_01', type: 'scene', occupiedBy: null, lastUpdated: Date.now() - 1000 * 60 * 120 },
+  { id: '4', projectId: 'proj_1', name: 'Enemy_Bruiser', type: 'prefab', occupiedBy: null, lastUpdated: Date.now() - 1000 * 60 * 60 * 24 },
+  { id: '5', projectId: 'proj_1', name: 'GameManager.cs', type: 'script', occupiedBy: null, lastUpdated: Date.now() - 1000 * 60 * 60 },
 ];
 
 interface OccupiedState {
@@ -43,14 +44,17 @@ export const useOccupiedStore = create<OccupiedState>((set, get) => ({
   occupiedItems: hasSupabase ? [] : MOCK_OCCUPIED,
 
   addOccupiedItem: async (name, type) => {
+    const projectId = useProjectStore.getState().currentProjectId;
+    if (!projectId) return;
+
     const newItemId = `new_${Date.now()}`;
-    const newItem: OccupiedItem = { id: newItemId, name, type, occupiedBy: null, lastUpdated: Date.now() };
+    const newItem: OccupiedItem = { id: newItemId, projectId, name, type, occupiedBy: null, lastUpdated: Date.now() };
 
     // Optimistic: add immediately
     set((state) => ({ occupiedItems: [...state.occupiedItems, newItem] }));
 
     try {
-      await insertOccupiedItem(newItemId, name, type);
+      await insertOccupiedItem(newItemId, projectId, name, type);
       logger.info(MODULE, `Added asset "${name}" (${type})`);
     } catch (err) {
       // Rollback: remove the optimistically added item

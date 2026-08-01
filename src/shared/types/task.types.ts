@@ -11,6 +11,7 @@ export type TaskStatusType = 'todo' | 'progress' | 'done' | 'debt';
 /** Represents a single task card on the Kanban board */
 export interface TaskItem {
   id: string;
+  projectId: string;
   /** Short title displayed on the task card */
   title: string;
   /** Optional longer description with task details */

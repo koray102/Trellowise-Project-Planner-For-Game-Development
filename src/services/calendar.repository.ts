@@ -11,11 +11,11 @@ import type { CalendarEvent, EventType } from '../shared/types';
 
 const MODULE = 'CalendarRepo';
 
-/** Fetch all calendar events from the database */
-export async function fetchAllEvents(): Promise<CalendarEvent[]> {
+/** Fetch all calendar events from the database for a specific project */
+export async function fetchAllEvents(projectId: string): Promise<CalendarEvent[]> {
   if (!hasSupabase || !supabase) return [];
 
-  const { data, error } = await supabase.from('events').select('*');
+  const { data, error } = await supabase.from('events').select('*').eq('project_id', projectId);
 
   if (error) {
     logger.error(MODULE, 'Failed to fetch events', error);
@@ -32,6 +32,7 @@ export async function fetchAllEvents(): Promise<CalendarEvent[]> {
  */
 export async function insertEvent(event: {
   id: string;
+  projectId: string;
   title: string;
   description: string;
   date: number;
@@ -41,6 +42,7 @@ export async function insertEvent(event: {
 
   const { error } = await supabase.from('events').insert({
     id: event.id,
+    project_id: event.projectId,
     title: event.title,
     description: event.description,
     date: event.date,

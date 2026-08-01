@@ -9,6 +9,7 @@ import type { CalendarEvent, EventType } from '../../shared/types';
 /** Raw row shape returned by Supabase `events` table */
 export interface DbEventRow {
   id: string;
+  project_id: string;
   title: string;
   description: string | null;
   date: number | string;
@@ -21,6 +22,7 @@ export interface DbEventRow {
 export function toCalendarEvent(row: DbEventRow): CalendarEvent {
   return {
     id: row.id,
+    projectId: row.project_id,
     title: row.title,
     description: row.description ?? undefined,
     date: Number(row.date),

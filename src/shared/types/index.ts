@@ -14,3 +14,4 @@ export type { TaskItem, TaskStatusType } from './task.types';
 export type { OccupiedItem, ItemType } from './occupied.types';
 export type { CalendarEvent, EventType } from './calendar.types';
 export type { AnnouncementItem } from './announcement.types';
+export type { Project } from './project.types';

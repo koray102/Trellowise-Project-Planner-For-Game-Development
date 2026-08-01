@@ -12,6 +12,7 @@ export type ItemType = 'scene' | 'script' | 'prefab';
 /** Represents a Unity asset that can be locked/unlocked by team members */
 export interface OccupiedItem {
   id: string;
+  projectId: string;
   /** Name of the asset (e.g. 'MainMenu', 'PlayerController.cs') */
   name: string;
   /** Category of the asset */

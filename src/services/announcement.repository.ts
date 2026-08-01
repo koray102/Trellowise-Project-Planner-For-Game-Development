@@ -11,13 +11,14 @@ import type { AnnouncementItem } from '../shared/types';
 
 const MODULE = 'AnnouncementRepo';
 
-/** Fetch all announcements, ordered by creation date (newest first) */
-export async function fetchAllAnnouncements(): Promise<AnnouncementItem[]> {
+/** Fetch all announcements for a specific project, ordered by creation date (newest first) */
+export async function fetchAllAnnouncements(projectId: string): Promise<AnnouncementItem[]> {
   if (!hasSupabase || !supabase) return [];
 
   const { data, error } = await supabase
     .from('announcements')
     .select('*')
+    .eq('project_id', projectId)
     .order('created_at', { ascending: false });
 
   if (error) {
@@ -38,6 +39,7 @@ export async function insertAnnouncement(announcement: AnnouncementItem): Promis
 
   const { error } = await supabase.from('announcements').insert({
     id: announcement.id,
+    project_id: announcement.projectId,
     text: announcement.text,
     user_id: announcement.userId,
     created_at: announcement.createdAt,

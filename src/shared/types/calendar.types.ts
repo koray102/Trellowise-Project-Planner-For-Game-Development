@@ -11,6 +11,7 @@ export type EventType = 'milestone' | 'meeting' | 'deadline';
 /** Represents a scheduled event on the team calendar */
 export interface CalendarEvent {
   id: string;
+  projectId: string;
   /** Title displayed on the calendar and event list */
   title: string;
   /** Optional longer description with event details */

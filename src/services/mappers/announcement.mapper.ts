@@ -12,6 +12,7 @@ import type { AnnouncementItem } from '../../shared/types';
 /** Raw row shape returned by Supabase `announcements` table */
 export interface DbAnnouncementRow {
   id: string;
+  project_id: string;
   text: string;
   user_id: string;
   created_at: number | string;
@@ -24,6 +25,7 @@ export interface DbAnnouncementRow {
 export function toAnnouncement(row: DbAnnouncementRow): AnnouncementItem {
   return {
     id: row.id,
+    projectId: row.project_id,
     text: row.text,
     userId: row.user_id,
     createdAt: typeof row.created_at === 'number'
