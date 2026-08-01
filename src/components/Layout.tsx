@@ -2,8 +2,10 @@ import { useState, useEffect, useRef, type ReactNode } from 'react';
 import { Sidebar } from './Sidebar';
 import { useAnnouncementStore } from '../stores/useAnnouncementStore';
 import { useUserStore } from '../stores/useUserStore';
+import { useProjectStore } from '../stores/useProjectStore';
+import { useAppStore } from '../stores/useAppStore';
 import type { AnnouncementItem } from '../shared/types';
-import { Bell, X } from 'lucide-react';
+import { Bell, X, Loader2 } from 'lucide-react';
 import { playNotificationSound } from '../lib/notificationSound';
 
 const LS_READ_ANNOUNCEMENTS_KEY = 'gds-read-announcements';
@@ -40,6 +42,16 @@ export function Layout({ children }: { children: ReactNode }) {
 
   // Flag: has the initial load been done?
   const initialLoadDone = useRef(false);
+
+  const currentProjectId = useProjectStore((s) => s.currentProjectId);
+  const isProjectLoading = useAppStore((s) => s.isProjectLoading);
+
+  // --- Reset on project change ---
+  useEffect(() => {
+    initialLoadDone.current = false;
+    processedIdsRef.current.clear();
+    setUnreadAnnouncements([]);
+  }, [currentProjectId]);
 
   // --- On mount: find offline/missed announcements ---
   useEffect(() => {
@@ -136,7 +148,13 @@ export function Layout({ children }: { children: ReactNode }) {
         </div>
       )}
 
-      <main className="flex-1 overflow-y-auto p-4 md:p-8 bg-zinc-900/50">
+      <main className="flex-1 overflow-y-auto p-4 md:p-8 bg-zinc-900/50 relative">
+        {isProjectLoading ? (
+          <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-zinc-950/80 backdrop-blur-sm">
+            <Loader2 className="w-10 h-10 text-indigo-500 animate-spin mb-4" />
+            <div className="text-zinc-300 font-medium">Switching project...</div>
+          </div>
+        ) : null}
         {children}
       </main>
     </div>

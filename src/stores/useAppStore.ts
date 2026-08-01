@@ -44,6 +44,8 @@ const MODULE = 'AppStore';
 interface AppState {
   /** Whether the database (or mock data) is ready for the UI */
   dbReady: boolean;
+  /** Whether the app is currently fetching new project data on switch */
+  isProjectLoading: boolean;
   projectChannels: RealtimeChannel[];
 
   /** Initialize all stores: fetch data, set up realtime, configure auth */
@@ -55,6 +57,7 @@ interface AppState {
 
 export const useAppStore = create<AppState>((set, get) => ({
   dbReady: !hasSupabase, // true immediately if no Supabase (mock data ready)
+  isProjectLoading: false,
   projectChannels: [],
 
   initDb: async () => {
@@ -193,64 +196,69 @@ export const useAppStore = create<AppState>((set, get) => ({
   loadProjectData: async (projectId: string) => {
     if (!hasSupabase || !supabase) return;
     
+    set({ isProjectLoading: true });
     logger.info(MODULE, `Loading project data for ${projectId}`);
     
-    // Clear old project channels
-    const oldChannels = get().projectChannels;
-    for (const channel of oldChannels) {
-      supabase.removeChannel(channel);
-    }
-    
-    // Fetch project specific data
-    const [occupiedItems, tasks, events, announcements] = await Promise.all([
-      fetchAllOccupiedItems(projectId),
-      fetchAllTasks(projectId),
-      fetchAllEvents(projectId),
-      fetchAllAnnouncements(projectId),
-    ]);
-    
-    useOccupiedStore.getState()._setOccupiedItems(occupiedItems);
-    useTaskStore.getState()._setTasks(tasks);
-    useCalendarStore.getState()._setEvents(events);
-    useAnnouncementStore.getState()._setAnnouncements(announcements);
-    
-    // Setup project specific channels
-    const occupiedChannel = supabase.channel(`public:occupied_items:${projectId}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'occupied_items', filter: `project_id=eq.${projectId}` }, () => {
-        supabase!.from('occupied_items').select('*').eq('project_id', projectId).then(res => {
-          if (res.data) {
-            useOccupiedStore.getState()._setOccupiedItems(res.data.map(toOccupiedItem));
-          }
-        });
-      }).subscribe();
-
-    const tasksChannel = supabase.channel(`public:tasks:${projectId}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks', filter: `project_id=eq.${projectId}` }, () => {
-        supabase!.from('tasks').select('*').eq('project_id', projectId).then(res => {
-          if (res.data) {
-            useTaskStore.getState()._setTasks(res.data.map(toTask));
-          }
-        });
-      }).subscribe();
-
-    const eventsChannel = supabase.channel(`public:events:${projectId}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'events', filter: `project_id=eq.${projectId}` }, () => {
-        supabase!.from('events').select('*').eq('project_id', projectId).then(res => {
-          if (res.data) {
-            useCalendarStore.getState()._setEvents(res.data.map(toCalendarEvent));
-          }
-        });
-      }).subscribe();
-
-    const announcementsChannel = supabase.channel(`public:announcements:${projectId}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'announcements', filter: `project_id=eq.${projectId}` }, () => {
-        supabase!.from('announcements').select('*').eq('project_id', projectId).order('created_at', { ascending: false }).then(res => {
-          if (res.data) {
-            useAnnouncementStore.getState()._setAnnouncements(res.data.map(toAnnouncement));
-          }
-        });
-      }).subscribe();
+    try {
+      // Clear old project channels
+      const oldChannels = get().projectChannels;
+      for (const channel of oldChannels) {
+        supabase.removeChannel(channel);
+      }
       
-    set({ projectChannels: [occupiedChannel, tasksChannel, eventsChannel, announcementsChannel] });
+      // Fetch project specific data
+      const [occupiedItems, tasks, events, announcements] = await Promise.all([
+        fetchAllOccupiedItems(projectId),
+        fetchAllTasks(projectId),
+        fetchAllEvents(projectId),
+        fetchAllAnnouncements(projectId),
+      ]);
+      
+      useOccupiedStore.getState()._setOccupiedItems(occupiedItems);
+      useTaskStore.getState()._setTasks(tasks);
+      useCalendarStore.getState()._setEvents(events);
+      useAnnouncementStore.getState()._setAnnouncements(announcements);
+      
+      // Setup project specific channels
+      const occupiedChannel = supabase.channel(`public:occupied_items:${projectId}`)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'occupied_items', filter: `project_id=eq.${projectId}` }, () => {
+          supabase!.from('occupied_items').select('*').eq('project_id', projectId).then(res => {
+            if (res.data) {
+              useOccupiedStore.getState()._setOccupiedItems(res.data.map(toOccupiedItem));
+            }
+          });
+        }).subscribe();
+
+      const tasksChannel = supabase.channel(`public:tasks:${projectId}`)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks', filter: `project_id=eq.${projectId}` }, () => {
+          supabase!.from('tasks').select('*').eq('project_id', projectId).then(res => {
+            if (res.data) {
+              useTaskStore.getState()._setTasks(res.data.map(toTask));
+            }
+          });
+        }).subscribe();
+
+      const eventsChannel = supabase.channel(`public:events:${projectId}`)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'events', filter: `project_id=eq.${projectId}` }, () => {
+          supabase!.from('events').select('*').eq('project_id', projectId).then(res => {
+            if (res.data) {
+              useCalendarStore.getState()._setEvents(res.data.map(toCalendarEvent));
+            }
+          });
+        }).subscribe();
+
+      const announcementsChannel = supabase.channel(`public:announcements:${projectId}`)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'announcements', filter: `project_id=eq.${projectId}` }, () => {
+          supabase!.from('announcements').select('*').eq('project_id', projectId).order('created_at', { ascending: false }).then(res => {
+            if (res.data) {
+              useAnnouncementStore.getState()._setAnnouncements(res.data.map(toAnnouncement));
+            }
+          });
+        }).subscribe();
+        
+      set({ projectChannels: [occupiedChannel, tasksChannel, eventsChannel, announcementsChannel] });
+    } finally {
+      set({ isProjectLoading: false });
+    }
   }
 }));
