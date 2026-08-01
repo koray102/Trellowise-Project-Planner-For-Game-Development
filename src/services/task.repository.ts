@@ -48,6 +48,7 @@ export async function insertTask(task: {
   // Insert core fields first (always works)
   const { error } = await supabase.from('tasks').insert({
     id: dbRow.id,
+    project_id: dbRow.project_id,
     title: dbRow.title,
     description: dbRow.description,
     assigned_to: dbRow.assigned_to,
