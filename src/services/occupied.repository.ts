@@ -2,6 +2,7 @@
  * Occupied Item Repository — Data access layer for the `occupied_items` table
  *
  * Encapsulates all Supabase queries for the Conflict Prevention Engine.
+ * Write operations throw on error to support store-level rollback.
  */
 import { supabase, hasSupabase } from '../lib/supabase';
 import { logger } from '../shared/lib/logger';
@@ -25,7 +26,10 @@ export async function fetchAllOccupiedItems(): Promise<OccupiedItem[]> {
   return data.map(toOccupiedItem);
 }
 
-/** Insert a new occupied item (asset) */
+/**
+ * Insert a new occupied item (asset).
+ * @throws {Error} If the database insert fails
+ */
 export async function insertOccupiedItem(id: string, name: string, type: ItemType): Promise<void> {
   if (!hasSupabase || !supabase) return;
 
@@ -33,12 +37,16 @@ export async function insertOccupiedItem(id: string, name: string, type: ItemTyp
 
   if (error) {
     logger.error(MODULE, `Failed to insert occupied item "${name}"`, error);
-  } else {
-    logger.info(MODULE, `Inserted occupied item "${name}" (${type})`);
+    throw new Error(`DB insert failed: ${error.message}`);
   }
+
+  logger.info(MODULE, `Inserted occupied item "${name}" (${type})`);
 }
 
-/** Delete an occupied item by ID */
+/**
+ * Delete an occupied item by ID.
+ * @throws {Error} If the database delete fails
+ */
 export async function deleteOccupiedItem(itemId: string): Promise<void> {
   if (!hasSupabase || !supabase) return;
 
@@ -46,12 +54,16 @@ export async function deleteOccupiedItem(itemId: string): Promise<void> {
 
   if (error) {
     logger.error(MODULE, `Failed to delete occupied item ${itemId}`, error);
-  } else {
-    logger.info(MODULE, `Deleted occupied item ${itemId}`);
+    throw new Error(`DB delete failed: ${error.message}`);
   }
+
+  logger.info(MODULE, `Deleted occupied item ${itemId}`);
 }
 
-/** Rename an occupied item */
+/**
+ * Rename an occupied item.
+ * @throws {Error} If the database update fails
+ */
 export async function renameOccupiedItem(itemId: string, newName: string): Promise<void> {
   if (!hasSupabase || !supabase) return;
 
@@ -59,12 +71,16 @@ export async function renameOccupiedItem(itemId: string, newName: string): Promi
 
   if (error) {
     logger.error(MODULE, `Failed to rename occupied item ${itemId}`, error);
-  } else {
-    logger.info(MODULE, `Renamed occupied item ${itemId} to "${newName}"`);
+    throw new Error(`DB update failed: ${error.message}`);
   }
+
+  logger.info(MODULE, `Renamed occupied item ${itemId} to "${newName}"`);
 }
 
-/** Update the lock status (locked_by) of an occupied item */
+/**
+ * Update the lock status (locked_by) of an occupied item.
+ * @throws {Error} If the database update fails
+ */
 export async function updateOccupiedLock(itemId: string, lockedBy: string | null): Promise<void> {
   if (!hasSupabase || !supabase) return;
 
@@ -75,8 +91,9 @@ export async function updateOccupiedLock(itemId: string, lockedBy: string | null
 
   if (error) {
     logger.error(MODULE, `Failed to update lock for item ${itemId}`, error);
-  } else {
-    const action = lockedBy ? `Locked by ${lockedBy}` : 'Unlocked';
-    logger.info(MODULE, `${action}: item ${itemId}`);
+    throw new Error(`DB update failed: ${error.message}`);
   }
+
+  const action = lockedBy ? `Locked by ${lockedBy}` : 'Unlocked';
+  logger.info(MODULE, `${action}: item ${itemId}`);
 }

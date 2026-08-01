@@ -4,6 +4,7 @@
  * Encapsulates all Supabase queries for task/kanban data.
  * Handles the sort_order column gracefully (backward compatible
  * with databases that may not have this column yet).
+ * Write operations throw on error to support store-level rollback.
  */
 import { supabase, hasSupabase } from '../lib/supabase';
 import { logger } from '../shared/lib/logger';
@@ -27,7 +28,10 @@ export async function fetchAllTasks(): Promise<TaskItem[]> {
   return data.map(toTask);
 }
 
-/** Insert a new task */
+/**
+ * Insert a new task.
+ * @throws {Error} If the core insert fails (sort_order failure is non-fatal)
+ */
 export async function insertTask(task: {
   id: string;
   title: string;
@@ -51,7 +55,7 @@ export async function insertTask(task: {
 
   if (error) {
     logger.error(MODULE, `Failed to insert task ${task.id}`, error);
-    return;
+    throw new Error(`DB insert failed: ${error.message}`);
   }
 
   // Then try to set sort_order separately (won't break if column doesn't exist yet)
@@ -62,7 +66,10 @@ export async function insertTask(task: {
   logger.info(MODULE, `Inserted task "${task.title}"`);
 }
 
-/** Delete a task by ID */
+/**
+ * Delete a task by ID.
+ * @throws {Error} If the database delete fails
+ */
 export async function deleteTask(taskId: string): Promise<void> {
   if (!hasSupabase || !supabase) return;
 
@@ -70,12 +77,16 @@ export async function deleteTask(taskId: string): Promise<void> {
 
   if (error) {
     logger.error(MODULE, `Failed to delete task ${taskId}`, error);
-  } else {
-    logger.info(MODULE, `Deleted task ${taskId}`);
+    throw new Error(`DB delete failed: ${error.message}`);
   }
+
+  logger.info(MODULE, `Deleted task ${taskId}`);
 }
 
-/** Update a single field on a task */
+/**
+ * Update a single field on a task.
+ * @throws {Error} If the database update fails
+ */
 export async function updateTaskField(
   taskId: string,
   field: 'title' | 'description' | 'assigned_to' | 'status',
@@ -87,12 +98,16 @@ export async function updateTaskField(
 
   if (error) {
     logger.error(MODULE, `Failed to update task ${taskId} field "${field}"`, error);
-  } else {
-    logger.debug(MODULE, `Updated task ${taskId}: ${field} = "${value}"`);
+    throw new Error(`DB update failed: ${error.message}`);
   }
+
+  logger.debug(MODULE, `Updated task ${taskId}: ${field} = "${value}"`);
 }
 
-/** Move a task to a new status column with updated sort_order */
+/**
+ * Move a task to a new status column with updated sort_order.
+ * @throws {Error} If the status update fails (sort_order failure is non-fatal)
+ */
 export async function moveTaskStatus(taskId: string, newStatus: TaskStatusType, sort_order: number): Promise<void> {
   if (!hasSupabase || !supabase) return;
 
@@ -101,7 +116,7 @@ export async function moveTaskStatus(taskId: string, newStatus: TaskStatusType, 
 
   if (error) {
     logger.error(MODULE, `Failed to move task ${taskId} to "${newStatus}"`, error);
-    return;
+    throw new Error(`DB update failed: ${error.message}`);
   }
 
   // Then try sort_order separately (won't break if column doesn't exist yet)
@@ -112,7 +127,10 @@ export async function moveTaskStatus(taskId: string, newStatus: TaskStatusType, 
   logger.info(MODULE, `Moved task ${taskId} to "${newStatus}"`);
 }
 
-/** Batch update sort_order for multiple tasks (used after drag-and-drop reorder) */
+/**
+ * Batch update sort_order for multiple tasks (used after drag-and-drop reorder).
+ * @throws {Error} If any batch update fails
+ */
 export async function reorderTasksSortOrder(updates: { id: string; sort_order: number }[]): Promise<void> {
   if (!hasSupabase || !supabase) return;
 
@@ -125,7 +143,8 @@ export async function reorderTasksSortOrder(updates: { id: string; sort_order: n
   const errors = results.filter(r => r.error);
   if (errors.length > 0) {
     logger.error(MODULE, `Failed to reorder ${errors.length}/${updates.length} tasks`, errors);
-  } else {
-    logger.debug(MODULE, `Reordered ${updates.length} tasks`);
+    throw new Error(`Reorder failed for ${errors.length} tasks`);
   }
+
+  logger.debug(MODULE, `Reordered ${updates.length} tasks`);
 }

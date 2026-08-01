@@ -1,6 +1,8 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { useEffect } from 'react';
-import { useStore } from './store';
+import { useAppStore } from './stores/useAppStore';
+import { useAuthStore } from './stores/useAuthStore';
+import { useUserStore } from './stores/useUserStore';
 import { Layout } from './components/Layout';
 import { ProfileSelect } from './components/ProfileSelect';
 import { PasswordScreen } from './components/PasswordScreen';
@@ -10,12 +12,12 @@ import { Tasks } from './pages/Tasks';
 import { Calendar } from './pages/Calendar';
 
 function App() {
-  const currentUser = useStore((s) => s.currentUser);
-  const dbReady = useStore((s) => s.dbReady);
-  const isAuthenticated = useStore((s) => s.isAuthenticated);
+  const currentUser = useUserStore((s) => s.currentUser);
+  const dbReady = useAppStore((s) => s.dbReady);
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
 
   useEffect(() => {
-    useStore.getState().initDb();
+    useAppStore.getState().initDb();
   }, []);
 
   // Show loading while Supabase data is being fetched

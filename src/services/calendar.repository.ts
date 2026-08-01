@@ -2,6 +2,7 @@
  * Calendar Event Repository — Data access layer for the `events` table
  *
  * Encapsulates all Supabase queries for calendar event data.
+ * Write operations throw on error to support store-level rollback.
  */
 import { supabase, hasSupabase } from '../lib/supabase';
 import { logger } from '../shared/lib/logger';
@@ -25,7 +26,10 @@ export async function fetchAllEvents(): Promise<CalendarEvent[]> {
   return data.map(toCalendarEvent);
 }
 
-/** Insert a new calendar event */
+/**
+ * Insert a new calendar event.
+ * @throws {Error} If the database insert fails
+ */
 export async function insertEvent(event: {
   id: string;
   title: string;
@@ -45,7 +49,8 @@ export async function insertEvent(event: {
 
   if (error) {
     logger.error(MODULE, `Failed to insert event "${event.title}"`, error);
-  } else {
-    logger.info(MODULE, `Inserted event "${event.title}"`);
+    throw new Error(`DB insert failed: ${error.message}`);
   }
+
+  logger.info(MODULE, `Inserted event "${event.title}"`);
 }

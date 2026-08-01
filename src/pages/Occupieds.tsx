@@ -1,259 +1,36 @@
-import { useState, useMemo, useEffect, useRef, useCallback, Component, type ReactNode } from 'react';
-import { useStore } from '../store';
-import type { ItemType, OccupiedItem, User } from '../shared/types';
-import { Search, Plus, ShieldAlert, Lock, Unlock, Clock, FileJson, FileCode2, Box, Trash2, List, MoreHorizontal, User as UserIcon } from 'lucide-react';
-import { formatDistanceToNow } from 'date-fns';
+import { useState, useMemo, useEffect } from 'react';
+import { useUserStore } from '../stores/useUserStore';
+import { useOccupiedStore } from '../stores/useOccupiedStore';
+import type { ItemType, User } from '../shared/types';
+import { Search, Plus, ShieldAlert, Box, List, User as UserIcon } from 'lucide-react';
 import { cn } from '../shared/lib/cn';
-import { useClickOutside } from '../shared/hooks/useClickOutside';
+import { ErrorBoundary } from '../shared/components';
 
-/** Safe wrapper for formatDistanceToNow to prevent crashes on invalid dates */
-function safeFormatDistance(timestamp: number): string {
-  try {
-    if (!timestamp || isNaN(timestamp)) return 'unknown';
-    return formatDistanceToNow(timestamp);
-  } catch {
-    return 'unknown';
-  }
-}
-
-/** Error boundary to catch render crashes and show a recovery UI instead of black screen */
-class OccupiedsErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; error: string }> {
-  constructor(props: { children: ReactNode }) {
-    super(props);
-    this.state = { hasError: false, error: '' };
-  }
-  static getDerivedStateFromError(error: Error) {
-    return { hasError: true, error: error.message };
-  }
-  render() {
-    if (this.state.hasError) {
-      return (
-        <div className="h-full flex items-center justify-center">
-          <div className="text-center p-8 bg-zinc-900 border border-red-500/30 rounded-xl max-w-md">
-            <ShieldAlert className="w-12 h-12 text-red-400 mx-auto mb-4" />
-            <h2 className="text-xl font-bold text-zinc-200 mb-2">Something went wrong</h2>
-            <p className="text-zinc-400 text-sm mb-4">The Conflict Prevention Engine encountered an error.</p>
-            <p className="text-red-400/70 text-xs font-mono mb-4 break-all">{this.state.error}</p>
-            <button
-              onClick={() => this.setState({ hasError: false, error: '' })}
-              className="px-4 py-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg text-sm font-medium transition-colors"
-            >
-              Try Again
-            </button>
-          </div>
-        </div>
-      );
-    }
-    return this.props.children;
-  }
-}
-
-const TYPE_ICONS: Record<ItemType, React.ElementType> = {
-  scene: Box,
-  script: FileCode2,
-  prefab: FileJson,
-};
-
-const TYPE_COLORS: Record<ItemType, string> = {
-  scene: 'text-fuchsia-400 bg-fuchsia-400/10 border-fuchsia-400/20',
-  script: 'text-emerald-400 bg-emerald-400/10 border-emerald-400/20',
-  prefab: 'text-blue-400 bg-blue-400/10 border-blue-400/20',
-};
-
-const TYPE_LABELS: Record<ItemType, string> = {
-  scene: 'Scenes',
-  script: 'Scripts',
-  prefab: 'Prefabs'
-};
-
-const COLUMNS: ItemType[] = ['scene', 'prefab', 'script'];
+// Feature sub-components and constants
+import { OccupiedItemCard } from '../features/occupieds/OccupiedItemCard';
+import {
+  TYPE_ICONS,
+  TYPE_COLORS,
+  TYPE_LABELS,
+  COLUMNS,
+  TOAST_EVENT,
+  pushToast,
+  normalizeString,
+} from '../features/occupieds/constants';
 
 /**
- * Normalizes a string by converting to lowercase and stripping all whitespaces, underscores, and common punctuation.
- * e.g., "Main_ meNu" -> "mainmenu"
+ * Safely renders text with **bold** markers as React elements.
+ * Avoids dangerouslySetInnerHTML to prevent XSS attacks.
  */
-function normalizeString(str: string): string {
-  return str.toLowerCase().replace(/[\s_.,-]/g, '');
-}
-
-/** Global event name for pushing toast notifications */
-const TOAST_EVENT = 'gds-toast';
-
-function pushToast(message: string) {
-  window.dispatchEvent(new CustomEvent(TOAST_EVENT, { detail: message }));
-}
-
-function OccupiedItemCard({ item }: { item: OccupiedItem }) {
-  const { users, currentUser, toggleOccupiedLock, removeOccupiedItem, renameOccupiedItem } = useStore();
-  const [isEditing, setIsEditing] = useState(false);
-  const [editName, setEditName] = useState(item.name);
-  const [showMenu, setShowMenu] = useState(false);
-  
-  const menuRef = useRef<HTMLDivElement>(null);
-
-  const isLocked = !!item.occupiedBy;
-  const lockedByMe = item.occupiedBy === currentUser?.id;
-  const occupant = users.find(u => u.id === item.occupiedBy);
-  const Icon = TYPE_ICONS[item.type] || Box;
-  const typeColor = TYPE_COLORS[item.type] || 'text-zinc-400 bg-zinc-400/10 border-zinc-400/20';
-  const iconColorClass = typeColor.split(' ')[0] || 'text-zinc-400';
-
-  // Close menu when clicking outside
-  const closeMenu = useCallback(() => setShowMenu(false), []);
-  useClickOutside(menuRef, closeMenu, showMenu);
-
-  const handleRenameSubmit = () => {
-    if (editName.trim().length > 0 && editName !== item.name) {
-      renameOccupiedItem(item.id, editName.trim());
-    }
-    setIsEditing(false);
-  };
-
-  return (
-    <div 
-      className={cn(
-        "p-3 rounded-lg border transition-all duration-300 flex flex-col gap-2 group",
-        isLocked 
-          ? lockedByMe 
-            ? "bg-indigo-500/10 border-indigo-500/30 shadow-[0_0_10px_rgba(99,102,241,0.05)]" 
-            : "bg-red-500/5 border-red-500/30"
-          : "bg-zinc-900/80 border-zinc-800/80 hover:bg-zinc-800 hover:border-zinc-700"
-      )}
-    >
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex items-center gap-2 min-w-0 flex-1">
-          <Icon className={cn("w-4 h-4 shrink-0", iconColorClass)} />
-          
-          {isEditing ? (
-            <input
-              autoFocus
-              value={editName}
-              onChange={(e) => setEditName(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') handleRenameSubmit();
-                if (e.key === 'Escape') {
-                  setEditName(item.name);
-                  setIsEditing(false);
-                }
-              }}
-              onBlur={handleRenameSubmit}
-              className="bg-zinc-950 border border-indigo-500 rounded px-1.5 py-0.5 text-sm text-zinc-200 focus:outline-none w-full"
-            />
-          ) : (
-            <h3 className="font-semibold text-zinc-200 text-sm truncate leading-tight" title={item.name}>
-              {item.name}
-            </h3>
-          )}
-        </div>
-
-        {isLocked && occupant && occupant.name && (
-          <div className="flex items-center gap-1.5 shrink-0 bg-zinc-950 px-2 py-0.5 rounded-full border border-zinc-800/80">
-            <img 
-              src={occupant.avatar || ''} 
-              alt={occupant.name || 'User'} 
-              title={`Locked by ${occupant.name || 'Unknown'}`}
-              className="w-4 h-4 rounded-full bg-zinc-800 shrink-0" 
-            />
-            <span className={cn("text-[10px] font-bold uppercase tracking-wide", lockedByMe ? "text-indigo-400" : "text-red-400")}>
-              {(occupant.name || 'Unknown').split(' ')[0]}
-            </span>
-          </div>
-        )}
-      </div>
-
-      <div className="flex items-center justify-between mt-1 h-7">
-        <div className="flex items-center gap-2">
-          {isLocked ? (
-            <div className="flex items-center gap-1 text-[10px] text-zinc-500">
-              <Clock className="w-3 h-3" />
-              <span>{safeFormatDistance(item.lastUpdated)}</span>
-            </div>
-          ) : (
-            <div className="w-4" /> /* spacer */
-          )}
-        </div>
-
-        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity relative">
-          
-          {/* Menu Trigger */}
-          <div ref={menuRef} className="relative">
-             <button
-               onClick={() => setShowMenu(!showMenu)}
-               className={cn("p-1.5 rounded-md transition-colors", showMenu ? "bg-zinc-800 text-zinc-200" : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/80")}
-               title="More options"
-             >
-               <MoreHorizontal className="w-3.5 h-3.5" />
-             </button>
-             
-             {/* Simple Dropdown */}
-             {showMenu && (
-               <div className="absolute right-0 top-full mt-1 w-32 bg-zinc-900 border border-zinc-800 rounded-lg shadow-xl py-1 z-10 overflow-hidden">
-                 <button 
-                   onClick={() => {
-                     setIsEditing(true);
-                     setShowMenu(false);
-                   }}
-                   className="w-full text-left px-3 py-1.5 text-xs text-zinc-300 hover:bg-indigo-500/20 hover:text-indigo-400 transition-colors"
-                 >
-                   Rename
-                 </button>
-                 {/* Can add more options here later */}
-               </div>
-             )}
-          </div>
-
-          <button
-            onClick={() => removeOccupiedItem(item.id)}
-            className="p-1.5 text-zinc-500 hover:text-red-400 hover:bg-red-400/10 rounded-md transition-colors ml-0.5"
-            title="Delete item"
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-          </button>
-          
-          <button
-            onClick={() => {
-               if (currentUser) {
-                  toggleOccupiedLock(item.id, currentUser.id);
-               }
-            }}
-            disabled={isLocked && !lockedByMe}
-            className={cn(
-              "flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold transition-all duration-200 active:scale-95 ml-1",
-              isLocked
-                ? lockedByMe
-                  ? "bg-indigo-500 text-white hover:bg-indigo-600 shadow-sm shadow-indigo-500/20"
-                  : "bg-zinc-900 border border-zinc-800 text-zinc-600 cursor-not-allowed"
-                : "bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white border border-transparent"
-            )}
-            title={isLocked && !lockedByMe ? `Locked by ${occupant?.name || 'Unknown'}` : "Click to lock this item"}
-          >
-            {isLocked ? (
-              lockedByMe ? (
-                 <>
-                   <Unlock className="w-3 h-3" />
-                   Release
-                 </>
-              ) : (
-                 <>
-                   <Lock className="w-3 h-3 text-red-500/50" />
-                   LOCKED
-                 </>
-              )
-            ) : (
-              <>
-                <Lock className="w-3 h-3" />
-                Lock
-              </>
-            )}
-          </button>
-        </div>
-      </div>
-    </div>
+function renderBoldText(text: string): React.ReactNode {
+  const parts = text.split(/\*\*(.*?)\*\*/g);
+  return parts.map((part, i) =>
+    i % 2 === 1 ? <b key={i} className="font-bold text-white">{part}</b> : part
   );
 }
 
 function OccupiedsAllColumn() {
-  const { occupiedItems } = useStore();
+  const occupiedItems = useOccupiedStore((s) => s.occupiedItems);
   const [searchTerm, setSearchTerm] = useState('');
 
   const sortedAndFilteredItems = useMemo(() => {
@@ -310,7 +87,7 @@ function OccupiedsAllColumn() {
 }
 
 function UserColumn({ user }: { user: User }) {
-  const { occupiedItems } = useStore();
+  const occupiedItems = useOccupiedStore((s) => s.occupiedItems);
   const [searchTerm, setSearchTerm] = useState('');
 
   const sortedAndFilteredItems = useMemo(() => {
@@ -367,7 +144,8 @@ function UserColumn({ user }: { user: User }) {
 }
 
 function OccupiedsColumn({ type }: { type: ItemType }) {
-  const { occupiedItems, addOccupiedItem } = useStore();
+  const occupiedItems = useOccupiedStore((s) => s.occupiedItems);
+  const addOccupiedItem = useOccupiedStore((s) => s.addOccupiedItem);
   const [searchTerm, setSearchTerm] = useState('');
 
   const columnItems = useMemo(() => {
@@ -465,7 +243,7 @@ function OccupiedsColumn({ type }: { type: ItemType }) {
 }
 
 function OccupiedsInner() {
-  const { users } = useStore();
+  const users = useUserStore((s) => s.users);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   // Global toast listener
@@ -489,7 +267,7 @@ function OccupiedsInner() {
         <div className="absolute top-0 left-1/2 -translate-x-1/2 z-50 pointer-events-none">
           <div className="bg-zinc-900/90 backdrop-blur-sm border border-red-500/30 text-red-200 px-4 py-2 rounded-full shadow-lg text-sm flex items-center gap-2">
              <ShieldAlert className="w-4 h-4 text-red-400 shrink-0" />
-             <span dangerouslySetInnerHTML={{ __html: toastMessage.replace(/\*\*(.*?)\*\*/g, '<b>$1</b>') }} />
+             <span>{renderBoldText(toastMessage)}</span>
           </div>
         </div>
       )}
@@ -548,9 +326,9 @@ function OccupiedsInner() {
 
 export function Occupieds() {
   return (
-    <OccupiedsErrorBoundary>
+    <ErrorBoundary module="Conflict Prevention Engine">
       <OccupiedsInner />
-    </OccupiedsErrorBoundary>
+    </ErrorBoundary>
   );
 }
 

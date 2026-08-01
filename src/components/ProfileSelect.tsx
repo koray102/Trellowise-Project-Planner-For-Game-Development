@@ -1,10 +1,11 @@
-import { useStore } from '../store';
+import { useUserStore } from '../stores/useUserStore';
 import { cn } from '../shared/lib/cn';
 import { USER_STATUS_COLORS } from '../shared/constants/statusColors';
 import { Gamepad2 } from 'lucide-react';
 
 export function ProfileSelect() {
-  const { users, setCurrentUser } = useStore();
+  const users = useUserStore((s) => s.users);
+  const setCurrentUser = useUserStore((s) => s.setCurrentUser);
 
   return (
     <div className="fixed inset-0 bg-zinc-950 flex items-center justify-center z-[200]">

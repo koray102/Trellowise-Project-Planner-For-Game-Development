@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
-import { useStore } from '../store';
+import { useCalendarStore } from '../stores/useCalendarStore';
 import type { CalendarEvent, EventType } from '../shared/types';
+import { Modal } from '../shared/components';
 import { 
   format, 
   addMonths, 
@@ -31,7 +32,8 @@ const TYPE_ICONS: Record<EventType, React.ElementType> = {
 };
 
 export function Calendar() {
-  const { events, addEvent } = useStore();
+  const events = useCalendarStore((s) => s.events);
+  const addEvent = useCalendarStore((s) => s.addEvent);
   const [currentDate, setCurrentDate] = useState(new Date());
   
   // Modal states
@@ -45,7 +47,7 @@ export function Calendar() {
   // List refs for scrolling
   const listRef = useRef<HTMLDivElement>(null);
   const targetEventRef = useRef<HTMLDivElement>(null);
-  const [hasScrolled, setHasScrolled] = useState(false);
+  const hasScrolledRef = useRef(false);
 
   // Chronologically sort all events
   const sortedEvents = useMemo(() => {
@@ -73,11 +75,11 @@ export function Calendar() {
 
   // Execute scroll once on mount
   useEffect(() => {
-    if (!hasScrolled && targetEventRef.current && listRef.current) {
+    if (!hasScrolledRef.current && targetEventRef.current && listRef.current) {
       targetEventRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      setHasScrolled(true);
+      hasScrolledRef.current = true;
     }
-  }, [sortedEvents, hasScrolled]);
+  }, [sortedEvents]);
 
   const nextMonth = () => setCurrentDate(addMonths(currentDate, 1));
   const prevMonth = () => setCurrentDate(subMonths(currentDate, 1));
@@ -251,12 +253,10 @@ export function Calendar() {
 
       {/* --- MODALS --- */}
 
-      {/* Add Event Modal */}
-      {addingOnDate && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-zinc-950 border border-zinc-800 p-6 rounded-xl w-full max-w-md shadow-2xl">
-            <h3 className="text-lg font-semibold mb-4 text-zinc-100">Add Agenda Item</h3>
-            <p className="text-sm text-zinc-500 mb-6">Scheduling for {format(addingOnDate, 'MMMM do, yyyy')}</p>
+      <Modal isOpen={!!addingOnDate} onClose={() => setAddingOnDate(null)}>
+        <div className="p-6">
+            <Modal.Title>Add Agenda Item</Modal.Title>
+            <p className="text-sm text-zinc-500 mt-1 mb-6">Scheduling for {addingOnDate && format(addingOnDate, 'MMMM do, yyyy')}</p>
             
             <div className="space-y-4 mb-6">
               <div>
@@ -322,13 +322,11 @@ export function Calendar() {
               </button>
             </div>
           </div>
-        </div>
-      )}
+      </Modal>
 
-      {/* Event Detail Modal */}
-      {selectedEvent && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-zinc-950 border border-zinc-800 p-6 rounded-xl w-full max-w-sm shadow-2xl relative">
+      <Modal isOpen={!!selectedEvent} onClose={() => setSelectedEvent(null)} maxWidth="max-w-sm">
+        {selectedEvent && (
+          <div className="p-6 relative">
             <button 
               onClick={() => setSelectedEvent(null)}
               className="absolute top-4 right-4 p-1 rounded-md text-zinc-500 hover:text-white hover:bg-zinc-800 transition-colors"
@@ -358,8 +356,8 @@ export function Calendar() {
                </p>
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </Modal>
 
     </div>
   );

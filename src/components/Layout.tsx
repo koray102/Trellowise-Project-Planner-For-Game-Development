@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef, type ReactNode } from 'react';
 import { Sidebar } from './Sidebar';
-import { useStore } from '../store';
+import { useAnnouncementStore } from '../stores/useAnnouncementStore';
+import { useUserStore } from '../stores/useUserStore';
+import type { AnnouncementItem } from '../shared/types';
 import { Bell, X } from 'lucide-react';
 import { playNotificationSound } from '../lib/notificationSound';
 
@@ -23,10 +25,12 @@ function saveReadAnnouncementIds(ids: Set<string>) {
 }
 
 export function Layout({ children }: { children: ReactNode }) {
-  const { announcements, currentUser, users } = useStore();
+  const announcements = useAnnouncementStore((s) => s.announcements);
+  const currentUser = useUserStore((s) => s.currentUser);
+  const users = useUserStore((s) => s.users);
 
   // Track which announcements are shown in the notification banner
-  const [unreadAnnouncements, setUnreadAnnouncements] = useState<any[]>([]);
+  const [unreadAnnouncements, setUnreadAnnouncements] = useState<AnnouncementItem[]>([]);
 
   // Persistent read IDs from localStorage
   const readIdsRef = useRef<Set<string>>(getReadAnnouncementIds());

@@ -1,11 +1,14 @@
 import { useState } from 'react';
-import { useStore } from '../store';
+import { useAuthStore } from '../stores/useAuthStore';
+import { useUserStore } from '../stores/useUserStore';
 import { cn } from '../shared/lib/cn';
 import { USER_STATUS_COLORS } from '../shared/constants/statusColors';
 import { Eye, EyeOff, Lock, ArrowLeft } from 'lucide-react';
 
 export function PasswordScreen() {
-  const { currentUser, loginWithPassword, logoutUser } = useStore();
+  const currentUser = useUserStore((s) => s.currentUser);
+  const logoutUser = useUserStore((s) => s.logoutUser);
+  const loginWithPassword = useAuthStore((s) => s.loginWithPassword);
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState(false);

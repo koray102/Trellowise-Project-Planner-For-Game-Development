@@ -26,7 +26,10 @@ export async function fetchAllUsers(): Promise<User[]> {
   return data.map(toUser);
 }
 
-/** Update a user's profile (name, avatar, roles) */
+/**
+ * Update a user's profile (name, avatar, roles).
+ * @throws {Error} If the database update fails
+ */
 export async function updateUser(userId: string, updates: Partial<User>): Promise<void> {
   if (!hasSupabase || !supabase) return;
 
@@ -35,9 +38,10 @@ export async function updateUser(userId: string, updates: Partial<User>): Promis
 
   if (error) {
     logger.error(MODULE, `Failed to update user ${userId}`, error);
-  } else {
-    logger.info(MODULE, `Updated user ${userId}`, dbUpdates);
+    throw new Error(`DB update failed: ${error.message}`);
   }
+
+  logger.info(MODULE, `Updated user ${userId}`, dbUpdates);
 }
 
 /** Fetch site password from the config table */

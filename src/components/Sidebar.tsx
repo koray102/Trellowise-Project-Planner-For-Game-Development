@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom';
-import { useStore } from '../store';
+import { useUserStore } from '../stores/useUserStore';
 import { 
   LayoutDashboard, 
   Calendar, 
@@ -7,6 +7,7 @@ import {
   ShieldAlert
 } from 'lucide-react';
 import { cn } from '../shared/lib/cn';
+import { UserAvatar } from '../shared/components';
 
 const NAV_ITEMS = [
   { name: 'Dashboard', path: '/', icon: LayoutDashboard },
@@ -16,7 +17,8 @@ const NAV_ITEMS = [
 ];
 
 export function Sidebar() {
-  const { users, currentUser } = useStore();
+  const users = useUserStore((s) => s.users);
+  const currentUser = useUserStore((s) => s.currentUser);
 
   return (
     <aside className="w-64 bg-zinc-950 border-r border-zinc-800/60 flex flex-col hidden md:flex">
@@ -67,14 +69,7 @@ export function Sidebar() {
                   : "text-zinc-400"
               )}
             >
-              <div className="relative shrink-0">
-                <img src={user.avatar} alt={user.name} className="w-6 h-6 rounded-full bg-zinc-800" />
-                <div className={cn(
-                  "absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-zinc-950",
-                  user.status === 'online' ? "bg-emerald-500" : 
-                  user.status === 'away' ? "bg-amber-500" : "bg-zinc-500"
-                )} />
-              </div>
+              <UserAvatar user={user} size="sm" showStatus />
               <div className="flex flex-col items-start text-left w-full overflow-hidden">
                 <span className="truncate font-medium leading-snug w-full">{user.name}</span>
                 {user.roles && user.roles.length > 0 && (
@@ -91,14 +86,7 @@ export function Sidebar() {
               {/* Hover Popover */}
               <div className="absolute left-0 bottom-full mb-1 w-52 bg-zinc-900 border border-zinc-700 rounded-lg p-3 z-[100] opacity-0 invisible group-hover:opacity-100 group-hover:visible shadow-xl transition-all pointer-events-none">
                 <div className="flex items-start gap-3">
-                  <div className="relative shrink-0">
-                    <img src={user.avatar} alt={user.name} className="w-10 h-10 rounded-full bg-zinc-800" />
-                    <div className={cn(
-                      "absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-zinc-900",
-                      user.status === 'online' ? "bg-emerald-500" : 
-                      user.status === 'away' ? "bg-amber-500" : "bg-zinc-500"
-                    )} />
-                  </div>
+                    <UserAvatar user={user} size="lg" showStatus />
                   <div className="flex flex-col items-start text-left">
                     <span className="font-bold text-sm text-zinc-100 truncate w-full">{user.name}</span>
                     <div className="flex gap-1.5 mt-1.5 flex-wrap">

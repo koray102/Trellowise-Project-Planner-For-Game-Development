@@ -2,6 +2,7 @@
  * Announcement Repository — Data access layer for the `announcements` table
  *
  * Encapsulates all Supabase queries for team announcement data.
+ * Functions throw on error so the caller (store) can handle rollback.
  */
 import { supabase, hasSupabase } from '../lib/supabase';
 import { logger } from '../shared/lib/logger';
@@ -28,7 +29,10 @@ export async function fetchAllAnnouncements(): Promise<AnnouncementItem[]> {
   return data.map(toAnnouncement);
 }
 
-/** Insert a new announcement */
+/**
+ * Insert a new announcement.
+ * @throws {Error} If the database insert fails
+ */
 export async function insertAnnouncement(announcement: AnnouncementItem): Promise<void> {
   if (!hasSupabase || !supabase) return;
 
@@ -41,7 +45,8 @@ export async function insertAnnouncement(announcement: AnnouncementItem): Promis
 
   if (error) {
     logger.error(MODULE, `Failed to insert announcement "${announcement.id}"`, error);
-  } else {
-    logger.info(MODULE, `Inserted announcement from user ${announcement.userId}`);
+    throw new Error(`DB insert failed: ${error.message}`);
   }
+
+  logger.info(MODULE, `Inserted announcement from user ${announcement.userId}`);
 }

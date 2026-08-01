@@ -49,7 +49,7 @@ It comes pre-configured with a **[Supabase](https://supabase.com/)** integration
 3. Open the `schema.sql` file provided in this repository, copy its contents, and execute it to create all necessary tables (`users`, `occupied_items`, `tasks`, `events`, `announcements`, `config`).
 4. Enable **Realtime** for all the tables you just created (Go to Database -> Replication -> Enable for all tables).
 
-*(Note: If you are using a different backend, simply adapt the data fetching and realtime subscription logic located in `src/store.ts` to match your provider).*
+*(Note: If you are using a different backend, simply adapt the data fetching and realtime subscription logic located in the `src/stores/` and `src/services/` directories to match your provider).*
 
 ### 3. Clone and Install
 ```bash
